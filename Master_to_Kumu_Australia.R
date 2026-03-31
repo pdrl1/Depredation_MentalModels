@@ -70,6 +70,14 @@ library(openxlsx)
 #     Kumu splits on | correctly. Using "; " (semicolon + space) causes a
 #     leading-space bug where "Western Australia" != " Western Australia".
 #
+# A7. CATEGORY DEDUPLICATION (the 95-row bug fix)
+#     21 of the 70 unique Labels have different Category values assigned by
+#     different workshops. Using group_by(Label, Category) would produce 95
+#     rows because each (Label, Category) combination becomes its own row.
+#     Fix: a category_corrections lookup assigns ONE canonical Category per
+#     label, applied BEFORE grouping; then group_by(Label) alone is used.
+#     Resolution strategy: majority vote (>=60%) or domain logic for ties.
+#     All 21 decisions are documented in the category_corrections block below.
 # =============================================================================
 
 
@@ -139,13 +147,92 @@ resolve_region <- function(from_val, to_val) {
 }
 
 
+# ---- Category corrections (A7) ----------------------------------------------
+#
+# A7. CATEGORY INCONSISTENCY
+#     21 Labels have different Category values assigned across workshops.
+#     Without correction, group_by(Label, Category) creates duplicate rows
+#     (95 rows instead of 71).
+#     Fix: apply a single canonical Category per Label before grouping,
+#     then group_by(Label) only.
+#
+#     Resolution rules:
+#       - Clear majority (>=60 %): use most-common value.
+#       - Exact tie: use the category that best fits the concept domain
+#         (documented per label below).
+#
+#     Labels corrected and their chosen category:
+#
+#       Best Handling/Release Practices (Fish) : "Fisheries Operations & Practices"
+#         (3-way tie 1/1/1 -- fishing handling practices are operational)
+#       Charter/Rec Fisheries (Fish)           : "Fisheries Operations & Practices" (2/3 majority)
+#       Ecosystem Imbalance                    : "Ecological & Biological Factors"  (5/6 majority)
+#       Environmental Organization Influence   : "Policy & Economics"               (5/7 majority)
+#       Fish Discards                          : "Fisheries Operations & Practices" (6/7 majority)
+#       Fisher Expertise                       : "Human Dimensions"
+#         (2/4 tie -- expertise is a personal/human skill factor)
+#       Fisheries Health                       : "Fisheries Research & Management"
+#         (3-way tie 1/1/1 -- health of fish stocks = research/management domain)
+#       Fishing Effort Concentration           : "Fisheries Operations & Practices" (7/8 majority)
+#       Mismanagement                          : "Policy & Economics"
+#         (4/4 tie -- failure of governance/policy rather than research)
+#       Number of Fishers                      : "Fisheries Operations & Practices" (9/10 majority)
+#       Political Correctness                  : "Human Dimensions"                 (4/6 majority)
+#       Proximity to Structure                 : "Ecological & Biological Factors"
+#         (2/2 tie -- spatial/habitat feature, ecological factor)
+#       Public Education/Marketing             : "Human Dimensions"                 (5/8 majority)
+#       Seasonal/Area Closures                 : "Fisheries Research & Management"  (5/6 majority)
+#       Shark Abundance                        : "Ecological & Biological Factors"  (8/9 majority)
+#       Shark Harvest                          : "Fisheries Research & Management"  (6/7 majority)
+#       Shark Harvest (Commercial)             : "Fisheries Research & Management"  (7/8 majority)
+#       Shark Market Demand                    : "Policy & Economics"               (4/5 majority)
+#       Shark Protections                      : "Policy & Economics"
+#         (1/1 tie -- shark protection regulations are policy instruments)
+#       Target Species Depth                   : "Ecological & Biological Factors"  (3/5 majority)
+#       Tourism                                : "Policy & Economics"               (4/5 majority)
+#
+category_corrections <- c(
+  "Best Handling/Release Practices (Fish)" = "Fisheries Operations & Practices",
+  "Charter/Rec Fisheries (Fish)"           = "Fisheries Operations & Practices",
+  "Ecosystem Imbalance"                    = "Ecological & Biological Factors",
+  "Environmental Organization Influence"   = "Policy & Economics",
+  "Fish Discards"                          = "Fisheries Operations & Practices",
+  "Fisher Expertise"                       = "Human Dimensions",
+  "Fisheries Health"                       = "Fisheries Research & Management",
+  "Fishing Effort Concentration"           = "Fisheries Operations & Practices",
+  "Mismanagement"                          = "Policy & Economics",
+  "Number of Fishers"                      = "Fisheries Operations & Practices",
+  "Political Correctness"                  = "Human Dimensions",
+  "Proximity to Structure"                 = "Ecological & Biological Factors",
+  "Public Education/Marketing"             = "Human Dimensions",
+  "Seasonal/Area Closures"                 = "Fisheries Research & Management",
+  "Shark Abundance"                        = "Ecological & Biological Factors",
+  "Shark Harvest"                          = "Fisheries Research & Management",
+  "Shark Harvest (Commercial)"             = "Fisheries Research & Management",
+  "Shark Market Demand"                    = "Policy & Economics",
+  "Shark Protections"                      = "Policy & Economics",
+  "Target Species Depth"                   = "Ecological & Biological Factors",
+  "Tourism"                                = "Policy & Economics"
+)
+
+
 # ---- Build Elements (A4) ----------------------------------------------------
+#
+# Step 1: apply canonical category where a correction exists
+# Step 2: group by Label only (not Category) -> exactly one row per unique label
+#
 elements_df <- elements_raw %>%
-  mutate(Region = region_map[Workshop]) %>%
-  group_by(Label, Category) %>%
+  mutate(
+    Region   = region_map[Workshop],
+    Category = if_else(Label %in% names(category_corrections),
+                       category_corrections[Label],
+                       Category)
+  ) %>%
+  group_by(Label) %>%
   summarise(
-    Tags = paste(sort(unique(Region)), collapse = "|"),   # A6: pipe, no spaces
-    .groups = "drop"
+    Category = first(Category),                            # A7: one canonical value
+    Tags     = paste(sort(unique(Region)), collapse = "|"), # A6: pipe, no spaces
+    .groups  = "drop"
   ) %>%
   arrange(Label)
 
