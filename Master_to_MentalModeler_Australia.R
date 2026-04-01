@@ -12,78 +12,84 @@
 # ASSUMPTIONS & CHANGES DOCUMENTED
 # =============================================================================
 #
-# [A1] DATA SOURCE — Connections are read exclusively from the "Connections"
-#      sheet (455 valid rows). The "Elements" sheet also embeds one connection
-#      per element (each element's primary link to 'Depredation'), but these
-#      are a subset of the Connections sheet. Using the Connections sheet avoids
-#      duplication and ensures all inter-element connections are captured.
+# [A1] DATA SOURCE — Connections are read from the "Connections" sheet (455
+#      valid rows). The "Elements" sheet also embeds one connection per element
+#      in columns From/To/Direction/Strength/Type (columns G–K). Comparing the
+#      two sheets revealed that 296 of those 297 embedded connections are already
+#      present in the Connections sheet. The one that is not (Culling → ID 164,
+#      Geraldton) references element ID 164, which does not exist anywhere in
+#      the Elements sheet and was therefore treated as a data-entry error in the
+#      original spreadsheet. It is excluded. The Connections sheet is used as
+#      the sole authoritative source.
 #
 # [A2] 'DEPREDATION' NODE — 'Depredation' appears as From/To in the Connections
-#      sheet but is NOT listed as a row in the Elements sheet. It is treated as
-#      a valid concept node and is included in every regional CSV in which it
-#      participates (via its connecting elements).
+#      sheet but has no corresponding row in the Elements sheet. It is treated
+#      as a valid concept node present in all regions where it participates.
 #
-# [A3] WORKSHOP ASSIGNMENT FOR CONNECTIONS — A connection is assigned to a
+# [A3] CONNECTION SIGN (TYPE COLUMN) — The 'Type' column in the Connections
+#      sheet encodes relationship polarity:
+#        Type = 'Yes'  →  POSITIVE influence (concept increases the target)
+#        Type = 'No'   →  NEGATIVE influence (concept decreases the target)
+#      'Yes ' (trailing whitespace) is normalised to 'Yes'.
+#      This dataset has 309 positive and 146 negative connections.
+#
+# [A4] STRENGTH → MENTAL MODELER SCALE — Kumu uses magnitude 1 (weak) or 2
+#      (strong). Combined with Type (sign), these map to Mental Modeler's
+#      −1..+1 scale as follows:
+#        Strength 2, Type Yes  →  +1.0  (strong positive)
+#        Strength 1, Type Yes  →  +0.5  (weak positive)
+#        Strength 1, Type No   →  −0.5  (weak negative)
+#        Strength 2, Type No   →  −1.0  (strong negative)
+#
+# [A5] WORKSHOP ASSIGNMENT FOR CONNECTIONS — A connection is assigned to a
 #      workshop (and thus a region) based on the FROM element's workshop.
 #      Exception: when From = 'Depredation', the connection is assigned to the
-#      TO element's workshop (since 'Depredation' itself has no workshop).
-#      There are 0 cross-workshop element-to-element connections in this dataset,
-#      so this rule never causes ambiguity for those connections.
+#      TO element's workshop (Depredation has no workshop of its own).
+#      There are 0 cross-workshop element-to-element connections in this dataset
+#      so this rule is unambiguous.
 #
-# [A4] REGION → WORKSHOP MAPPING (as specified by user):
-#      - North Australia  : Darwin
-#      - Queensland       : Townsville, Brisbane
-#      - New South Wales  : Coffs Harbour   ← NOTE: data spells it 'Coffs Harbour'
+# [A6] REGION → WORKSHOP MAPPING (as specified):
+#        North Australia   : Darwin
+#        Queensland        : Townsville, Brisbane
+#        New South Wales   : Coffs Harbour  ← NOTE: data spells it 'Coffs Harbour'
 #                                               (not 'Coffs Harbor' as in the request)
-#      - Western Australia: Perth, Geraldton, Exmouth, Broome
-#      Connections not belonging to any of the above workshops are only included
-#      in the All Australia output.
+#        Western Australia : Perth, Geraldton, Exmouth, Broome
+#      Connections whose Conn_Workshop is NA (cannot be assigned) are only
+#      present in the All Australia output.
 #
-# [A5] BIDIRECTIONAL CONNECTIONS — Connections with Direction = 'undirected' or
-#      'mutual' are expanded into TWO directed connections (A→B and B→A), both
-#      with the same strength. 'directed ' (trailing whitespace) is normalised
-#      to 'directed'. In this dataset: 401 directed, 30 undirected, 21 mutual,
-#      3 'directed ' (with space).
+# [A7] BIDIRECTIONAL CONNECTIONS — 'undirected' and 'mutual' connections are
+#      each expanded into TWO directed edges (A→B and B→A) with the same
+#      signed strength. 'directed ' (trailing space) is normalised to
+#      'directed'. Counts in dataset: 401 directed, 30 undirected, 21 mutual,
+#      3 'directed ' (space).
 #
-# [A6] STRENGTH MAPPING — All strength values in the data are 1 (weak) or 2
-#      (strong). There are NO negative relationship values in the dataset.
-#      They are mapped to the Mental Modeler −1..+1 scale as follows:
-#        Kumu 1  →  Mental Modeler +0.5  (weak positive influence)
-#        Kumu 2  →  Mental Modeler +1.0  (strong positive influence)
-#      IMPORTANT: All connections are treated as POSITIVE (increasing) influences
-#      because no negative/decreasing valence is recorded in the source data.
-#      Users should manually review and flip signs where the real-world
-#      relationship is negative (e.g. "more enforcement → less depredation").
+# [A8] AVERAGING DUPLICATE CONNECTIONS — Mental Modeler accepts only one value
+#      per (From, To) concept-pair. Within each regional output, all connections
+#      sharing the same (From_Label, To_Label) pair are AVERAGED (mean).
+#      This occurs when different workshops within the same region independently
+#      drew the same conceptual link with differing strengths or signs. 55
+#      concept labels are shared across multiple workshops. Averaging preserves
+#      group consensus and can yield intermediate values (e.g. −0.25, 0.75).
 #
-# [A7] AVERAGING DUPLICATE CONNECTIONS — Mental Modeler cannot handle multiple
-#      arrows between the same concept pair. Within each regional output, all
-#      connections sharing the same (From_Label, To_Label) pair are averaged.
-#      This occurs when different workshops in the same region independently
-#      drew the same conceptual link with different strengths (e.g. Exmouth and
-#      Broome both drew "Fishing Effort → Depredation" with strengths 2 and 1
-#      respectively; the WA output records 1.5 for that link).
-#      55 concept labels appear in more than one workshop, so averaging is
-#      meaningful for regional aggregation.
+# [A9] CONCEPT INCLUSION — All concepts that appear as either From or To in at
+#      least one connection for a given region are included in that region's
+#      matrix. Every one of the 298 elements in the dataset participates in at
+#      least one connection, so no element is silently dropped.
 #
-# [A8] CONCEPTS INCLUDED IN EACH REGIONAL CSV — Only concepts that appear in
-#      at least one connection for that region are included in the matrix.
-#      Concepts from other regions that happen to share the same label are still
-#      distinct rows in the data but collapse when the label is used as the
-#      matrix index (see A7).
+# [A10] SELF-LOOPS — No self-loop connections (A→A) exist in the source data.
+#       Any that might arise from bidirectional expansion are removed.
 #
-# [A9] SELF-LOOPS — No self-loop connections (A→A) exist in the source data.
-#      If any were introduced by bidirectional expansion (not expected), they
-#      are removed.
+# [A11] EMPTY ROWS — The Connections sheet contains 926 completely empty rows
+#       (spreadsheet artefact). These are silently dropped.
 #
-# [A10] EMPTY CONNECTIONS — The Connections sheet contains 926 completely empty
-#       rows (artefact of the spreadsheet layout). These are silently dropped.
-#
-# [A11] OUTPUT FORMAT — Each CSV is an adjacency matrix where:
-#       - Row = FROM concept (cause)
-#       - Column = TO concept (effect)
-#       - Cell value = averaged, sign-adjusted influence strength (0, ±0.5, ±1.0)
-#       - The first column is labelled "Concepts" and contains row concept names
-#       This matches the Mental Modeler import format.
+# [A12] OUTPUT FORMAT — Each CSV is an adjacency matrix where:
+#         Row    = FROM concept (cause / influencer)
+#         Column = TO concept  (effect / influenced)
+#         Cell   = averaged signed influence strength
+#                  (0 means no connection; non-zero values ∈ {±0.5, ±1.0} or
+#                   intermediate averages such as ±0.25, ±0.75, etc.)
+#         First column header = "Concepts", contains row concept names.
+#       This matches the Mental Modeler CSV import format.
 #
 # =============================================================================
 
@@ -102,12 +108,12 @@ library(stringr)
 input_file  <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/Mental Models from Marcus/Australia/Master.xlsx"
 output_dir <- "."             # Directory where output CSVs will be written
 
-# Region → Workshop mapping  [A4]
-# NOTE: use exact spellings from the data file
+# Region → Workshop mapping  [A6]
+# NOTE: use exact spellings found in the data file
 region_map <- list(
   "North_Australia"   = c("Darwin"),
   "Queensland"        = c("Townsville", "Brisbane"),
-  "New_South_Wales"   = c("Coffs Harbour"),   # data uses 'Harbour', not 'Harbor'
+  "New_South_Wales"   = c("Coffs Harbour"),   # data: 'Harbour', not 'Harbor'
   "Western_Australia" = c("Perth", "Geraldton", "Exmouth", "Broome")
 )
 
@@ -115,14 +121,14 @@ region_map <- list(
 # STEP 1 — Load data
 # =============================================================================
 cat("========================================================\n")
-cat("Kumu → Mental Modeler Converter\n")
+cat("Kumu -> Mental Modeler Converter\n")
 cat("========================================================\n\n")
 cat("Loading data from:", input_file, "\n")
 
 elements_raw    <- read_excel(input_file, sheet = "Elements")
 connections_raw <- read_excel(input_file, sheet = "Connections")
 
-# Keep only the columns we need; drop entirely empty rows  [A10]
+# Keep only the columns we need; drop entirely empty rows  [A11]
 elements <- elements_raw %>%
   select(ID, Label, Category, State, Workshop) %>%
   filter(!is.na(ID)) %>%
@@ -133,13 +139,15 @@ elements <- elements_raw %>%
   )
 
 connections <- connections_raw %>%
-  select(From, To, Direction, Strength) %>%
-  filter(!is.na(From)) %>%                      # drop empty rows  [A10]
+  select(From, To, Direction, Strength, Type) %>%   # 'Type ' has trailing space in sheet
+  rename(Type = Type) %>%
+  filter(!is.na(From)) %>%                              # drop empty rows  [A11]
   mutate(
     From      = as.character(From),
     To        = as.character(To),
-    Direction = trimws(as.character(Direction)), # normalise trailing spaces  [A5]
-    Strength  = as.numeric(Strength)
+    Direction = trimws(as.character(Direction)),         # normalise trailing spaces  [A7]
+    Strength  = as.numeric(Strength),
+    Type      = trimws(as.character(Type))              # normalise 'Yes ' → 'Yes'  [A3]
   )
 
 cat(sprintf("  Elements loaded   : %d rows\n", nrow(elements)))
@@ -153,50 +161,48 @@ id_to_label    <- setNames(elements$Label,    elements$ID)
 id_to_workshop <- setNames(elements$Workshop, elements$ID)
 
 # =============================================================================
-# STEP 3 — Resolve IDs to labels and assign workshops  [A2][A3]
+# STEP 3 — Resolve IDs to labels, assign workshops  [A2][A5]
 # =============================================================================
 connections <- connections %>%
   mutate(
     # Resolve From
     From_Label = case_when(
-      From == "Depredation"            ~ "Depredation",
-      From %in% names(id_to_label)     ~ id_to_label[From],
-      TRUE                             ~ NA_character_
+      From == "Depredation"           ~ "Depredation",
+      From %in% names(id_to_label)    ~ id_to_label[From],
+      TRUE                            ~ NA_character_
     ),
     From_Workshop = case_when(
-      From == "Depredation"            ~ NA_character_,   # Depredation has no workshop
-      From %in% names(id_to_workshop)  ~ id_to_workshop[From],
-      TRUE                             ~ NA_character_
+      From == "Depredation"           ~ NA_character_,  # Depredation has no workshop
+      From %in% names(id_to_workshop) ~ id_to_workshop[From],
+      TRUE                            ~ NA_character_
     ),
-
+    
     # Resolve To
     To_Label = case_when(
-      To == "Depredation"              ~ "Depredation",
-      To %in% names(id_to_label)       ~ id_to_label[To],
-      TRUE                             ~ NA_character_
+      To == "Depredation"             ~ "Depredation",
+      To %in% names(id_to_label)      ~ id_to_label[To],
+      TRUE                            ~ NA_character_
     ),
     To_Workshop = case_when(
-      To == "Depredation"              ~ NA_character_,
-      To %in% names(id_to_workshop)    ~ id_to_workshop[To],
-      TRUE                             ~ NA_character_
+      To == "Depredation"             ~ NA_character_,
+      To %in% names(id_to_workshop)   ~ id_to_workshop[To],
+      TRUE                            ~ NA_character_
     )
   )
 
-# Warn about any unresolvable IDs
+# Warn about unresolvable IDs (e.g. the Culling → 164 orphan from Elements)  [A1]
 unresolved <- connections %>% filter(is.na(From_Label) | is.na(To_Label))
 if (nrow(unresolved) > 0) {
-  cat(sprintf("WARNING: %d connection(s) could not be resolved to labels",
+  cat(sprintf("NOTE: %d connection(s) reference element IDs not found in the Elements\n",
               nrow(unresolved)))
-  cat(" and will be skipped:\n")
-  print(unresolved %>% select(From, To, Direction, Strength))
+  cat("      sheet and will be skipped (see assumption A1):\n")
+  print(unresolved %>% select(From, To, Direction, Strength, Type))
   cat("\n")
 }
 
 connections <- connections %>% filter(!is.na(From_Label) & !is.na(To_Label))
 
-# Assign connection to a workshop  [A3]
-#   - If From is a real element → use From element's workshop
-#   - If From is 'Depredation'  → use To element's workshop
+# Assign each connection to a workshop  [A5]
 connections <- connections %>%
   mutate(
     Conn_Workshop = if_else(From == "Depredation", To_Workshop, From_Workshop)
@@ -208,7 +214,7 @@ print(table(connections$Conn_Workshop, useNA = "ifany"))
 cat("\n")
 
 # =============================================================================
-# STEP 4 — Expand bidirectional connections  [A5]
+# STEP 4 — Expand bidirectional connections  [A7]
 # =============================================================================
 bidirectional_types <- c("undirected", "mutual")
 
@@ -218,160 +224,178 @@ directed_conns <- connections %>%
 bidir_forward <- connections %>%
   filter(Direction %in% bidirectional_types)
 
-# Reverse direction: swap From↔To labels and workshops
-# We use mutate() rather than rename() for the swap to avoid circular-rename issues
+# Reverse: swap From↔To using temp columns to avoid circular-rename issues
 bidir_reverse <- bidir_forward %>%
   mutate(
-    tmp_From          = To,           tmp_To          = From,
-    tmp_From_Label    = To_Label,     tmp_To_Label    = From_Label,
-    tmp_From_Workshop = To_Workshop,  tmp_To_Workshop = From_Workshop
+    tmp_From     = To,          tmp_To     = From,
+    tmp_FL       = To_Label,    tmp_TL     = From_Label,
+    tmp_FW       = To_Workshop, tmp_TW     = From_Workshop
   ) %>%
   select(-From, -To, -From_Label, -To_Label, -From_Workshop, -To_Workshop) %>%
   rename(
-    From          = tmp_From,          To          = tmp_To,
-    From_Label    = tmp_From_Label,    To_Label    = tmp_To_Label,
-    From_Workshop = tmp_From_Workshop, To_Workshop = tmp_To_Workshop
+    From          = tmp_From,  To          = tmp_To,
+    From_Label    = tmp_FL,    To_Label    = tmp_TL,
+    From_Workshop = tmp_FW,    To_Workshop = tmp_TW
   ) %>%
-  # Re-assign Conn_Workshop after the swap
   mutate(
     Conn_Workshop = if_else(From == "Depredation", To_Workshop, From_Workshop)
   )
 
 connections_expanded <- bind_rows(directed_conns, bidir_forward, bidir_reverse)
 
-cat(sprintf("Connections after bidirectional expansion: %d\n",
+cat(sprintf("After bidirectional expansion: %d connections\n",
             nrow(connections_expanded)))
-cat(sprintf("  (added %d reverse edges from %d undirected/mutual connections)\n\n",
+cat(sprintf("  (%d reverse edges added from %d undirected/mutual connections)\n\n",
             nrow(bidir_reverse), nrow(bidir_forward)))
 
 # =============================================================================
-# STEP 5 — Map Kumu strength to Mental Modeler scale  [A6]
+# STEP 5 — Compute signed Mental Modeler strength  [A3][A4]
 # =============================================================================
+# Type = 'Yes' → positive (+), Type = 'No' → negative (−)
+# Strength 1 → magnitude 0.5, Strength 2 → magnitude 1.0
+
 connections_expanded <- connections_expanded %>%
   mutate(
-    MM_Strength = case_when(
+    Sign = case_when(
+      Type == "Yes" ~  1,
+      Type == "No"  ~ -1,
+      TRUE          ~  NA_real_
+    ),
+    Magnitude = case_when(
       Strength == 1 ~ 0.5,
       Strength == 2 ~ 1.0,
-      TRUE          ~ NA_real_    # should not occur in this dataset
-    )
+      TRUE          ~ NA_real_
+    ),
+    MM_Strength = Sign * Magnitude
   )
 
-na_str <- sum(is.na(connections_expanded$MM_Strength))
-if (na_str > 0) {
-  cat(sprintf("WARNING: %d connection(s) have an unrecognised strength value",
-              na_str))
-  cat(" and will be skipped.\n\n")
+# Report and drop any connections with missing Type or Strength
+bad <- sum(is.na(connections_expanded$MM_Strength))
+if (bad > 0) {
+  cat(sprintf("WARNING: %d connection(s) have an unrecognised Type or Strength", bad))
+  cat(" and will be skipped:\n")
+  print(connections_expanded %>%
+          filter(is.na(MM_Strength)) %>%
+          select(From_Label, To_Label, Direction, Strength, Type))
+  cat("\n")
   connections_expanded <- connections_expanded %>% filter(!is.na(MM_Strength))
 }
 
-# Remove self-loops (just in case)  [A9]
+# Remove self-loops  [A10]
 self_loops <- connections_expanded %>% filter(From_Label == To_Label)
 if (nrow(self_loops) > 0) {
   cat(sprintf("NOTE: Removed %d self-loop(s).\n\n", nrow(self_loops)))
   connections_expanded <- connections_expanded %>% filter(From_Label != To_Label)
 }
 
+# Summary of signs
+pos_n <- sum(connections_expanded$MM_Strength > 0)
+neg_n <- sum(connections_expanded$MM_Strength < 0)
+cat(sprintf("Final connection pool: %d total  (%d positive, %d negative)\n\n",
+            nrow(connections_expanded), pos_n, neg_n))
+
 # =============================================================================
-# STEP 6 — Helper function: build and write a Mental Modeler CSV  [A7][A8][A11]
+# STEP 6 — Helper: build and write one Mental Modeler CSV  [A8][A9][A12]
 # =============================================================================
 
 make_mm_csv <- function(conn_subset, region_name, output_dir) {
-
+  
   if (nrow(conn_subset) == 0) {
     cat(sprintf("  WARNING: No connections found for '%s'. Skipping.\n", region_name))
     return(invisible(NULL))
   }
-
-  # Average duplicate (From_Label, To_Label) pairs  [A7]
+  
+  # Average duplicate (From_Label, To_Label) pairs within this region  [A8]
   conn_avg <- conn_subset %>%
     group_by(From_Label, To_Label) %>%
     summarise(
       MM_Strength = mean(MM_Strength, na.rm = TRUE),
-      n_averaged  = n(),
+      n_sources   = n(),        # how many raw connections contributed
       .groups     = "drop"
     )
-
-  n_averaged_pairs <- sum(conn_avg$n_averaged > 1)
-  if (n_averaged_pairs > 0) {
-    cat(sprintf("  Averaged %d concept-pair(s) that had multiple connections.\n",
-                n_averaged_pairs))
+  
+  n_avg_pairs <- sum(conn_avg$n_sources > 1)
+  if (n_avg_pairs > 0) {
+    cat(sprintf("  Averaged %d concept-pair(s) with multiple connections.\n",
+                n_avg_pairs))
   }
-
-  # All unique concepts (both as source and target)  [A8]
+  
+  # All unique concepts in this region (rows AND columns)  [A9]
   all_concepts <- sort(unique(c(conn_avg$From_Label, conn_avg$To_Label)))
   n_concepts   <- length(all_concepts)
-
-  # Build adjacency matrix (initialised to 0)
+  
+  # Build adjacency matrix initialised to 0
   mat <- matrix(0,
                 nrow     = n_concepts,
                 ncol     = n_concepts,
                 dimnames = list(all_concepts, all_concepts))
-
+  
   for (i in seq_len(nrow(conn_avg))) {
     f <- conn_avg$From_Label[i]
     t <- conn_avg$To_Label[i]
     mat[f, t] <- conn_avg$MM_Strength[i]
   }
-
-  # Convert to data frame; first column = concept names  [A11]
+  
+  # Convert to data frame; prepend concept-name column  [A12]
   df <- as.data.frame(mat, check.names = FALSE)
   df <- cbind(Concepts = rownames(df), df)
   rownames(df) <- NULL
-
+  
   # Write CSV
   filename <- file.path(output_dir,
                         paste0(region_name, "_MentalModeler.csv"))
   write.csv(df, filename, row.names = FALSE, quote = TRUE)
-
-  cat(sprintf("  Written: %s\n", basename(filename)))
-  cat(sprintf("           %d concepts, %d unique connections",
-              n_concepts, nrow(conn_avg)))
-
-  # Report any values that are not standard (0, 0.5, 1.0)
-  # after averaging, values like 0.75 are possible
-  non_standard <- conn_avg %>%
-    filter(MM_Strength != 0, MM_Strength != 0.5, MM_Strength != 1.0)
-  if (nrow(non_standard) > 0) {
-    cat(sprintf(", %d averaged value(s) are non-standard (e.g. 0.75)",
-                nrow(non_standard)))
+  
+  n_pos <- sum(conn_avg$MM_Strength > 0)
+  n_neg <- sum(conn_avg$MM_Strength < 0)
+  cat(sprintf("  Written : %s\n", basename(filename)))
+  cat(sprintf("            %d concepts | %d connections (%d positive, %d negative)",
+              n_concepts, nrow(conn_avg), n_pos, n_neg))
+  
+  # Flag intermediate averaged values (not cleanly ±0.5 or ±1.0)
+  non_std <- conn_avg %>%
+    filter(MM_Strength != 0, !MM_Strength %in% c(0.5, 1.0, -0.5, -1.0))
+  if (nrow(non_std) > 0) {
+    cat(sprintf("\n            %d pair(s) have intermediate averaged values (e.g. ±0.25, ±0.75)",
+                nrow(non_std)))
   }
   cat("\n")
-
+  
   invisible(df)
 }
 
 # =============================================================================
-# STEP 7 — Generate All Australia CSV
+# STEP 7 — All Australia
 # =============================================================================
 cat("--------------------------------------------------------\n")
 cat("Generating: All Australia\n")
 make_mm_csv(connections_expanded, "All_Australia", output_dir)
 
 # =============================================================================
-# STEP 8 — Generate one CSV per region
+# STEP 8 — One CSV per region
 # =============================================================================
 for (region_name in names(region_map)) {
   cat("--------------------------------------------------------\n")
   workshops_in_region <- region_map[[region_name]]
-  cat(sprintf("Generating: %s (workshops: %s)\n",
+  cat(sprintf("Generating: %s  (workshops: %s)\n",
               gsub("_", " ", region_name),
               paste(workshops_in_region, collapse = ", ")))
-
+  
   region_conns <- connections_expanded %>%
     filter(Conn_Workshop %in% workshops_in_region)
-
+  
   make_mm_csv(region_conns, region_name, output_dir)
 }
 
 # =============================================================================
-# STEP 9 — Summary
+# STEP 9 — Done
 # =============================================================================
 cat("========================================================\n")
 cat("Done! Output files written to:", normalizePath(output_dir), "\n")
 cat("========================================================\n\n")
-cat("REMINDER [A6]: All connections are encoded as POSITIVE influences\n")
-cat("(+0.5 = weak, +1.0 = strong). No negative valence was present in\n")
-cat("the source data. Please review and manually flip signs where the\n")
-cat("real-world relationship is inhibiting/decreasing.\n\n")
-cat("REMINDER [A4]: 'Coffs Harbour' (data spelling) = 'Coffs Harbor'\n")
-cat("(user spelling). The NSW output uses the data spelling.\n")
+cat("REMINDER [A6]: 'Coffs Harbour' (data spelling) = 'Coffs Harbor'\n")
+cat("(user request spelling). The NSW file uses the data spelling.\n\n")
+cat("REMINDER [A8]: Averaged values can be intermediate (e.g. -0.25,\n")
+cat("0.75). These occur where two workshops in the same region drew the\n")
+cat("same conceptual link with different strengths or opposite signs.\n")
+cat("Review these pairs manually if needed.\n")
