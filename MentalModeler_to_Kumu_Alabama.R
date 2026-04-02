@@ -417,7 +417,6 @@ category_lookup <- tribble(
   "Lights On Shrimping Boats",                                        "Fisheries Operations & Practices",
   "Number Of Fishermen",                                              "Fisheries Operations & Practices",
   "Number Of Shrimp Boats",                                           "Fisheries Operations & Practices",
-  "Shark Fishery",                                                    "Fisheries Operations & Practices",
   "Time Of Day",                                                      "Fisheries Operations & Practices",
   "Time On Water",                                                    "Fisheries Operations & Practices",
   "Widely Distributed Artificial Reefs",                              "Fisheries Operations & Practices",
@@ -432,8 +431,6 @@ category_lookup <- tribble(
   "Commercial Captain Satisfaction",                                  "Human Dimensions",
   "Commercial Satisfaction",                                          "Human Dimensions",
   "Difficulty To Id Species",                                         "Human Dimensions",
-  "Economic Loss",                                                    "Human Dimensions",
-  "Gear Economic Loss",                                               "Human Dimensions",
   "Human Injury",                                                     "Human Dimensions",
   "Knowledge Of Depredation",                                         "Human Dimensions",
   "Miscommunication Between Fishermen + Scientists",                  "Human Dimensions",
@@ -443,6 +440,8 @@ category_lookup <- tribble(
   "Shark Bites",                                                      "Human Dimensions",
   "Tourist Angler Satisfaction",                                      "Human Dimensions",
   # ── Policy & Economics ──────────────────────────────────────────────────────
+  "Economic Loss",                                                    "Policy & Economics",
+  "Gear Economic Loss",                                               "Policy & Economics",
   "Ability To Commercially Harvest Sharks",                           "Policy & Economics",
   "Complex Species-Specific Regulations",                             "Policy & Economics",
   "Diverse Markets For Shark Products",                               "Policy & Economics",
@@ -472,6 +471,7 @@ category_lookup <- tribble(
   "Rec Harvest Of Sandbars",                                          "Fisheries Research & Management",
   "Shark Harvest",                                                    "Fisheries Research & Management",
   "Shark Landings (Legal)",                                           "Fisheries Research & Management",
+  "Shark Fishery",                                                    "Fisheries Research & Management",
   "Single Species Shark Stock Assessments",                           "Fisheries Research & Management"
 )
 
