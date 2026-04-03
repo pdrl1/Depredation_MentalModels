@@ -390,3 +390,7 @@ if (nrow(missing_cats) > 0) {
   cat("⚠  Add these to category_lookup and re-run:\n")
   cat("  ", paste(missing_cats$Label, collapse = "\n   "), "\n")
 }
+
+
+#Note: Manually added into the xlsx because Mental Modeler does not understand: 
+# -->  CLient Satifaction to Depredation +1 and -1
