@@ -58,9 +58,10 @@ category_lookup <- tribble(
   "Hooked Fish Behavior",                                                                                                   "Ecological & Biological Factors",
   "Shark Vessel\u2013Food Association (Attraction And Following Fishing Boats Due To Learned Food Rewards)",                "Ecological & Biological Factors",
   "Shark Attraction To Vessels",                                                                                            "Ecological & Biological Factors",
-  "Climate Change / Increase In Water Temperature",                                                                         "Ecological & Biological Factors",
+  "Climate Change",                                                                                                         "Ecological & Biological Factors",
+  "Water Temperature",                                                                                                      "Ecological & Biological Factors",
   "Bp Oil Spill Reduced Prey Populations (Shark's Food)",                                                                   "Ecological & Biological Factors",
-  "Habitat loss (Removal of rigs and platforms)",                                                                           "Ecological & Biological Factors",
+  "Habitat Loss (Removal of rigs and platforms)",                                                                           "Ecological & Biological Factors",
   "Increased Number Of Artificial Reefs",                                                                                   "Ecological & Biological Factors",
 
   # ── Fisheries Operations & Practices ─────────────────────────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ category_lookup <- tribble(
   "Insurance Risks For Charters",                                                                                           "Fisheries Operations & Practices",
   "More Frequent Fishing Spots (Hotspots)",                                                                                 "Fisheries Operations & Practices",
   "Catch In Commercial Fishing",                                                                                            "Fisheries Operations & Practices",
-  "Number Of Shrimp Boats (80% Less Since 1980)",                                                                           "Fisheries Operations & Practices",
+  "Number Of Shrimp Boats",                                                                                                 "Fisheries Operations & Practices",
   "Fishing Time",                                                                                                           "Fisheries Operations & Practices",
   "Recreational Fishing Boats Following Commercial Fishing Vessels. This Attracts Sharks To Shrimper Boats",                "Fisheries Operations & Practices",
   "Changing Species Targeted By Recreational Fishing",                                                                      "Fisheries Operations & Practices",
@@ -82,7 +83,7 @@ category_lookup <- tribble(
   # ── Human Dimensions ─────────────────────────────────────────────────────────────────────────────────────────────────
   "Fishermen's Income",                                                                                                     "Human Dimensions",
   "Public Fear - Dangling Your Feet",                                                                                       "Human Dimensions",
-  "Public positive perception",                                                                                             "Human Dimensions",
+  "Public Positive Perception",                                                                                             "Human Dimensions",
   "Health Conscious",                                                                                                       "Human Dimensions",
   "Increased Fishing Interest In Social Media",                                                                             "Human Dimensions",
   "More Recreational Fishermen",                                                                                            "Human Dimensions",
@@ -111,15 +112,15 @@ category_lookup <- tribble(
   "Cost Of Fines From Gear Damage (Shrimpers)",                                                                             "Policy & Economics",
   "Labor Time To Repair Gear",                                                                                              "Policy & Economics",
   "Economic Loss",                                                                                                          "Policy & Economics",
-  "Profit (Losing Catch Due To Depredation Reduces Profit)",                                                                "Policy & Economics",
+  "Fishing Profitability",                                                                                                  "Policy & Economics",
 
   
   # ── Fisheries Research & Management ──────────────────────────────────────────────────────────────────────────────────
   "Research And Funding",                                                                                                   "Fisheries Research & Management",
-  "Reef Fish Fisheries Management Effectiveness",                                                                           "Fisheries Research & Management",
+  "Fisheries Management Effectiveness (Reef Fish)",                                                                           "Fisheries Research & Management",
   "Hms Management Actions",                                                                                                 "Fisheries Research & Management",
   "Hms Slow Management Response",                                                                                           "Fisheries Research & Management",
-  "Shark Fishing",                                                                                                          "Fisheries Research & Management",
+  "Shark Fishery",                                                                                                         "Fisheries Research & Management",
   "Commercial Shark Fisheries",                                                                                             "Fisheries Research & Management",
   "Efficiency Of Commercial Fishery",                                                                                       "Fisheries Research & Management"
   
