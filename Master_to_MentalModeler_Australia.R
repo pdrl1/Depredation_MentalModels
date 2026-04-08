@@ -248,6 +248,15 @@ cat(sprintf("After bidirectional expansion: %d connections\n",
 cat(sprintf("  (%d reverse edges added from %d undirected/mutual connections)\n\n",
             nrow(bidir_reverse), nrow(bidir_forward)))
 
+#bidirectional_types <- c("undirected", "mutual") correctly catches both categories. 
+#bidir_reverse swaps From↔To and is bound with bind_rows(directed_conns, bidir_forward, bidir_reverse), 
+#producing exactly the 51 additional edges. The 401 directed connections flow through directed_conns untouched.
+
+#Averaging within regions (including bidirectional overlaps): This is the most important part. 
+#Because bind_rows keeps all copies of a From→To pair — whether they originate from two separate directed connections, 
+#two workshops, or a bidirectional expansion overlapping a directed connection — 
+#group_by(From_Label, To_Label) %>% summarise(MM_Strength = mean(...)) in make_mm_csv averages all of them together. 
+#This is exactly what the paragraph describes.
 # =============================================================================
 # STEP 5 — Compute signed Mental Modeler strength  [A3][A4]
 # =============================================================================
@@ -313,6 +322,7 @@ make_mm_csv <- function(conn_subset, region_name, output_dir) {
       n_sources   = n(),        # how many raw connections contributed
       .groups     = "drop"
     )
+  #group_by(From_Label, To_Label) %>% summarise(MM_Strength = mean(...)) in make_mm_csv averages all of them together. 
   
   n_avg_pairs <- sum(conn_avg$n_sources > 1)
   if (n_avg_pairs > 0) {
@@ -399,3 +409,27 @@ cat("REMINDER [A8]: Averaged values can be intermediate (e.g. -0.25,\n")
 cat("0.75). These occur where two workshops in the same region drew the\n")
 cat("same conceptual link with different strengths or opposite signs.\n")
 cat("Review these pairs manually if needed.\n")
+
+
+#Averaged pairs that result in exactly 0 are still written to conn_avg internally 
+#and assigned a 0 in the matrix, rather than being explicitly filtered out beforehand. 
+#This is inconsequential for Mental Modeler (0 = no connection), 
+#but it means n_connections in the summary line will not count that pair (since only MM_Strength > 0 and MM_Strength < 0 are tallied). 
+#So the printed connection counts will correctly exclude those zero-averaged pairs. Everything is consistent.
+
+
+conn_subset <- connections_expanded   # or filter for a region
+
+conn_avg <- conn_subset %>%
+  group_by(From_Label, To_Label) %>%
+  summarise(
+    MM_Strength = mean(MM_Strength, na.rm = TRUE),
+    n_sources   = n(),
+    .groups     = "drop"
+  )
+
+View(conn_avg)
+
+
+
+
