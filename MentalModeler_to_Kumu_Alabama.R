@@ -773,7 +773,7 @@ notes_master <- tibble(
 )
 
 # ---- 4d. Write Master Kumu workbook ----------------------------------------
-master_path <- file.path(output_dir, "Kumu_MASTER_Alabama_Workshop.xlsx")
+master_path <- file.path(output_dir, "Kumu_MASTER_Alabama_Workshop_R.xlsx")
 write_kumu_wb(master_elements, master_connections, notes_master,
               master_path, sheet_label = "All States")
 

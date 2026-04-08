@@ -40,7 +40,7 @@ input_files <- list(
   Charter      = "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/MM/Charter_FinalModel.csv",
   Commercial   = "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/MM/Commercial_FinalModel.csv"
 )
-output_file <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Kumu/Kumu_MASTER_Galveston_Workshop.xlsx"
+output_file <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Kumu/Kumu_MASTER_Galveston_Workshop_R.xlsx"
 
 # ── 1. CATEGORY LOOKUP ───────────────────────────────────────
 # 72 unique Title-Cased concept labels → 6 thematic categories

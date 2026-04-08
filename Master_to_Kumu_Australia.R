@@ -78,6 +78,18 @@ library(openxlsx)
 #     label, applied BEFORE grouping; then group_by(Label) alone is used.
 #     Resolution strategy: majority vote (>=60%) or domain logic for ties.
 #     All 21 decisions are documented in the category_corrections block below.
+
+# A8. UNDIRECTED / MUTUAL EXPANSION
+#     The Master Connections sheet records a Direction column with three values:
+#       "directed"   (n=401 + 3 with trailing whitespace) -> single edge A->B
+#       "undirected" (n=30) -> expanded to TWO edges: A->B and B->A
+#       "mutual"     (n=21) -> expanded to TWO edges: A->B and B->A
+#     Both undirected and mutual arrows represent bidirectional relationships
+#     drawn by participants.  Each is duplicated with From/To swapped so the
+#     reverse edge appears explicitly in the Kumu output.
+#     Trailing whitespace in Direction values is trimmed before comparison.
+#     Self-loops (From == To after expansion) are removed; none expected.
+#     Total reverse edges added: 51  (30 undirected + 21 mutual)
 # =============================================================================
 
 
@@ -85,7 +97,7 @@ library(openxlsx)
 
 input_file  <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/Mental Models from Marcus/Australia/Master.xlsx"
 
-output_file <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Australia/Kumu/Kumu_Australia_SharkDepredation_R.xlsx"
+output_file <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Australia/Kumu/Kumu_Australia_SharkDepredation_R_New.xlsx"
 
 
 # ---- Load data --------------------------------------------------------------
@@ -247,7 +259,7 @@ elements_df <- bind_rows(elements_df, depredation_row) %>% arrange(Label)
 cat(sprintf("Elements: %d unique labels\n", nrow(elements_df)))
 
 
-# ---- Build Connections (A1, A2, A3, A5) -------------------------------------
+# ---- Build Connections (A1, A2, A3, A5, A8) -------------------------------------
 
 # Resolve all raw rows to (FromLabel, ToLabel, SignedStrength, Region)
 # Using sapply/mapply -- vectorised, avoids slow rowwise()
@@ -264,6 +276,34 @@ conns_resolved <- conns_raw %>%
   filter(!is.na(Region))
 
 cat(sprintf("Raw connection rows (resolved): %d\n", nrow(conns_resolved)))
+
+
+# ---- Expand undirected and mutual connections (A8) --------------------------
+#
+# A8. UNDIRECTED / MUTUAL EXPANSION
+#     Connections recorded as "undirected" (n=30) or "mutual" (n=21) represent
+#     relationships drawn as bidirectional by participants.
+#     Each such connection is expanded into TWO directed edges:
+#       original : A -> B  (same signed strength)
+#       reverse  : B -> A  (same signed strength)
+#     "directed" connections (n=401 + 3 with trailing whitespace) remain as
+#     single edges.  Self-loops after expansion are removed (none expected).
+#
+reverse_rows <- conns_resolved %>%
+  filter(Direction %in% c("undirected", "mutual")) %>%
+  mutate(
+    tmp       = FromLabel,
+    FromLabel = ToLabel,
+    ToLabel   = tmp
+  ) %>%
+  select(-tmp)
+
+n_reverse <- nrow(reverse_rows)
+conns_resolved <- bind_rows(conns_resolved, reverse_rows) %>%
+  filter(FromLabel != ToLabel)   # remove any self-loops introduced by expansion
+
+cat(sprintf("Reverse edges added (undirected + mutual): %d\n", n_reverse))
+cat(sprintf("Total rows after expansion: %d\n", nrow(conns_resolved)))
 
 # Deduplicate: (FromLabel, ToLabel, SignedStrength) -> one row per unique triple
 # Same pair with DIFFERENT strengths -> kept as separate rows (A5)
