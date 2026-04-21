@@ -78,18 +78,23 @@ library(openxlsx)
 #     label, applied BEFORE grouping; then group_by(Label) alone is used.
 #     Resolution strategy: majority vote (>=60%) or domain logic for ties.
 #     All 21 decisions are documented in the category_corrections block below.
-
-# A8. UNDIRECTED / MUTUAL EXPANSION
+#
+# A8. UNDIRECTED REMOVAL & MUTUAL EXPANSION
 #     The Master Connections sheet records a Direction column with three values:
-#       "directed"   (n=401 + 3 with trailing whitespace) -> single edge A->B
-#       "undirected" (n=30) -> expanded to TWO edges: A->B and B->A
-#       "mutual"     (n=21) -> expanded to TWO edges: A->B and B->A
-#     Both undirected and mutual arrows represent bidirectional relationships
-#     drawn by participants.  Each is duplicated with From/To swapped so the
-#     reverse edge appears explicitly in the Kumu output.
-#     Trailing whitespace in Direction values is trimmed before comparison.
+#       "directed"   (n=401 + 3 with trailing whitespace) -> single edge A->B; kept as-is
+#       "undirected" (n=30) -> REMOVED entirely from the Kumu output
+#       "mutual"     (n=21) -> expanded to TWO directed edges: A->B and B->A
+#     Rationale:
+#       "mutual" arrows represent explicitly bidirectional relationships where
+#       participants drew arrows intentionally in BOTH directions.
+#       "undirected" arrows represent relationships with no assigned direction;
+#       rather than arbitrarily imposing a direction or double-counting them,
+#       they are removed from the Kumu output.
+#     The 30 removed undirected connections are preserved in a separate
+#     "Undirected Arrows" sheet in the output Excel file for reference.
+#     Trailing whitespace in Direction values is trimmed (str_trim) before comparison.
 #     Self-loops (From == To after expansion) are removed; none expected.
-#     Total reverse edges added: 51  (30 undirected + 21 mutual)
+#     Total reverse edges added: 21  (mutual only)
 # =============================================================================
 
 
@@ -271,26 +276,64 @@ conns_resolved <- conns_raw %>%
       Type == "Yes",
       as.integer(Strength),
       -as.integer(Strength)),
-    Region         = mapply(resolve_region, From, To)   # A3
+    Region         = mapply(resolve_region, From, To),  # A3
+    Direction      = str_trim(as.character(Direction))  # trim whitespace (A8)
   ) %>%
-  filter(!is.na(Region))
+  filter(!is.na(Region)) %>%
+  filter(SignedStrength != 0)          # safety: exclude any 0-strength connections
 
 cat(sprintf("Raw connection rows (resolved): %d\n", nrow(conns_resolved)))
 
 
-# ---- Expand undirected and mutual connections (A8) --------------------------
+# ---- Remove undirected connections & capture for reference (A8) -------------
 #
-# A8. UNDIRECTED / MUTUAL EXPANSION
-#     Connections recorded as "undirected" (n=30) or "mutual" (n=21) represent
-#     relationships drawn as bidirectional by participants.
-#     Each such connection is expanded into TWO directed edges:
-#       original : A -> B  (same signed strength)
-#       reverse  : B -> A  (same signed strength)
-#     "directed" connections (n=401 + 3 with trailing whitespace) remain as
-#     single edges.  Self-loops after expansion are removed (none expected).
+# A8. UNDIRECTED REMOVAL
+#     Connections with Direction == "undirected" (n=30) are removed from the
+#     Kumu output because they have no assigned direction.
+#     They are saved to `undirected_table` and written to a separate Excel sheet.
 #
+undirected_table <- conns_resolved %>%
+  filter(Direction == "undirected") %>%
+  select(FromLabel, ToLabel, SignedStrength, Region) %>%
+  rename(From = FromLabel, To = ToLabel, Strength = SignedStrength) %>%
+  mutate(
+    `Influence Type` = if_else(Strength > 0, "Positive", "Negative"),
+    `Strength Label` = case_when(
+      Strength ==  2 ~ "Strong Positive",
+      Strength ==  1 ~ "Moderate Positive",
+      Strength == -1 ~ "Moderate Negative",
+      Strength == -2 ~ "Strong Negative",
+      TRUE           ~ as.character(Strength)
+    )
+  ) %>%
+  select(From, To, Strength, `Influence Type`, `Strength Label`, Region) %>%
+  arrange(From, To)
+
+n_undirected <- nrow(undirected_table)
+cat(sprintf("Undirected connections removed (saved to 'Undirected Arrows' sheet): %d\n",
+            n_undirected))
+
+# Remove undirected connections from the working set
+conns_resolved <- conns_resolved %>%
+  filter(Direction != "undirected")
+
+cat(sprintf("Rows after removing undirected: %d\n", nrow(conns_resolved)))
+
+
+# ---- Expand mutual connections to two directed edges (A8) -------------------
+#
+# A8. MUTUAL EXPANSION
+#     Connections with Direction == "mutual" (n=21) represent relationships
+#     where participants explicitly drew arrows in BOTH directions.
+#     Each mutual connection is expanded into TWO directed edges:
+#       original : A -> B  (same signed strength, kept from conns_resolved)
+#       reverse  : B -> A  (same signed strength, added below)
+#     "directed" connections remain as single edges.
+#     Self-loops after expansion are removed (none expected).
+#
+
 reverse_rows <- conns_resolved %>%
-  filter(Direction %in% c("undirected", "mutual")) %>%
+  filter(Direction == "mutual") %>%
   mutate(
     tmp       = FromLabel,
     FromLabel = ToLabel,
@@ -302,7 +345,7 @@ n_reverse <- nrow(reverse_rows)
 conns_resolved <- bind_rows(conns_resolved, reverse_rows) %>%
   filter(FromLabel != ToLabel)   # remove any self-loops introduced by expansion
 
-cat(sprintf("Reverse edges added (undirected + mutual): %d\n", n_reverse))
+cat(sprintf("Reverse edges added (mutual only): %d\n", n_reverse))
 cat(sprintf("Total rows after expansion: %d\n", nrow(conns_resolved)))
 
 # Deduplicate: (FromLabel, ToLabel, SignedStrength) -> one row per unique triple
@@ -368,11 +411,26 @@ if (length(neg_rows) > 0)
 setColWidths(wb, "Connections", cols = 1:6, widths = c(44, 44, 12, 18, 22, 56))
 freezePane(wb, "Connections", firstRow = TRUE)
 
+
+# Undirected Arrows sheet (reference only -- removed from Kumu Connections output)
+addWorksheet(wb, "Undirected Arrows")
+writeData(wb, "Undirected Arrows", undirected_table)
+addStyle(wb, "Undirected Arrows", h_style,
+         rows = 1, cols = 1:ncol(undirected_table))
+addStyle(wb, "Undirected Arrows", d_style,
+         rows = 2:(nrow(undirected_table) + 1),
+         cols = 1:ncol(undirected_table), gridExpand = TRUE)
+setColWidths(wb, "Undirected Arrows",
+             cols = 1:ncol(undirected_table),
+             widths = c(44, 44, 12, 18, 22, 28))
+freezePane(wb, "Undirected Arrows", firstRow = TRUE)
+
 # Notes sheet
 addWorksheet(wb, "Notes & Assumptions")
 notes_df <- tibble(
   Item = c("TAG FORMAT","","SIGN CONVENTION","","DEDUPLICATION","","",
            "REGIONS","","","","ELEMENTS","CONNECTIONS","",
+           "UNDIRECTED ARROWS","","",
            "STRENGTH SCALE","","","","KUMU IMPORT",""),
   Detail = c(
     "Tags use | (pipe, no spaces). Example: North Australia|Western Australia",
@@ -389,6 +447,9 @@ notes_df <- tibble(
     paste(nrow(elements_df), "unique labels = 70 from Master Label column + Depredation central node (A4)"),
     paste(nrow(connections_df), "unique rows from", nrow(conns_resolved), "raw rows (A5)"),
     paste(n_removed, "duplicates removed;", nrow(multi), "pairs kept as separate rows for different strengths"),
+    paste(n_undirected, "undirected connections removed from Kumu output (Direction == 'undirected') (A8)"),
+    "Mutual connections (n=21) kept as TWO directed edges each (A->B and B->A) (A8)",
+    "See 'Undirected Arrows' sheet for the full list of removed undirected connections",
     "+2 = Strong Positive   (strongly increases target)",
     "+1 = Moderate Positive (moderately increases target)",
     "-1 = Moderate Negative (moderately decreases target)",
