@@ -1,4 +1,23 @@
 # =============================================================================
+# VERIFICATION NOTE — April 2026
+# Checked for: (1) undirected arrows, (2) zero-strength connections.
+#
+# [1] UNDIRECTED ARROWS: NONE — NO CHANGES NEEDED
+#     Mental Modeler exports an adjacency MATRIX where each cell encodes a
+#     directed relationship (row = FROM, column = TO). There is no concept of
+#     "undirected" arrows in this format; every non-zero cell is inherently
+#     directional. No undirected/mutual expansion logic is present or needed.
+#
+# [2] ZERO-STRENGTH CONNECTIONS: FILTERED — NO CHANGES NEEDED
+#     In read_mm_csv(), the line:
+#       filter(!is.na(MM_Weight), MM_Weight != 0)
+#     explicitly removes any cell with MM_Weight == 0 before processing.
+#     Zero-weight entries are therefore never included in the output.
+#
+# CONCLUSION: This script is correct as-is. No functional edits required.
+# =============================================================================
+
+# =============================================================================
 # MentalModeler_to_Kumu_Alabama.R
 # Converts Mental Modeler adjacency-matrix CSV files (one per US state fisher
 # group from the Alabama workshop) into Kumu-formatted Excel files.

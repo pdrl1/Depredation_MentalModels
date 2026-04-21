@@ -1,4 +1,24 @@
 # =============================================================
+# VERIFICATION NOTE — April 2026
+# Checked for: (1) undirected arrows, (2) zero-strength connections.
+#
+# [1] UNDIRECTED ARROWS: NONE — NO CHANGES NEEDED
+#     Mental Modeler exports an adjacency MATRIX where each cell encodes a
+#     directed relationship (row = FROM, column = TO). There is no concept of
+#     "undirected" arrows in this format; every non-zero cell is inherently
+#     directional. No undirected/mutual expansion logic is present or needed.
+#
+# [2] ZERO-STRENGTH CONNECTIONS: FILTERED — NO CHANGES NEEDED
+#     In parse_mm_csv(), the line:
+#       if (is.na(val) || val == 0) next
+#     explicitly skips any cell with weight == 0 or NA during the matrix loop.
+#     Zero-weight entries are therefore never included in the output.
+#
+# CONCLUSION: This script is correct as-is. No functional edits required.
+# =============================================================
+
+
+# =============================================================
 # MentalModeler_to_Kumu_Galveston.R
 # Galveston Workshop — Three fisher groups:
 #   Recreational  (Recreational_FinalModel.csv)
