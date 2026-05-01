@@ -488,7 +488,7 @@ print(p1)
 
 # ── Plot 2: Top-3 per level ───────────────────────────────────
 top3_df <- do.call(rbind, lapply(names(all_results), function(nm) {
-  head(all_results[[nm]]$concept_df[, c("Concept","Degree")], 3) %>%
+  head(all_results[[nm]]$concept_df[, c("Concept","Degree")], 5) %>%
     mutate(Level = nm, Rank = row_number())
 }))
 
@@ -512,10 +512,19 @@ print(p2)
 
 # ── Plot 3: Validation comparison ─────────────────────────────
 val_long <- compare_df %>%
-  select(Level, Density,
-         `Average Clustering Coefficient`, `R/T Ratio`) %>%
+  select(Level,
+         Density,
+         Average.Clustering.Coefficient,
+         R.T.Ratio) %>%
   pivot_longer(-Level, names_to = "Metric", values_to = "Value") %>%
-  mutate(Value = as.numeric(Value))
+  mutate(
+    Value  = as.numeric(Value),
+    Metric = recode(Metric,
+                    "Average.Clustering.Coefficient" = "Avg Clustering Coefficient",
+                    "R.T.Ratio"                      = "R/T Ratio",
+                    "Density"                        = "Density")
+  )
+
 
 p3 <- ggplot(val_long, aes(x = Level, y = Value, fill = Level)) +
   geom_col(show.legend = FALSE) +
