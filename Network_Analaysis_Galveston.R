@@ -36,12 +36,12 @@ for (p in pkgs) {
 # SECTION 0 — PARAMETERS  (only section you need to edit)
 # ================================================================
 
-DATA_FILE <- "Exported_kumu_Galveston_22April.xlsx"
+DATA_FILE <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Kumu/Exported_Kumu_Galveston_30April.xlsx"
 
 # Fishing sectors to analyze individually (must match Tags exactly)
 SECTORS   <- c("Charter", "Commercial", "Recreational")
 
-OUT_DIR    <- "network_outputs_galveston"
+OUT_DIR    <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Network_Outputs"
 SAVE_PLOTS <- TRUE
 SAVE_CSV   <- TRUE
 

@@ -37,14 +37,14 @@ for (p in pkgs) {
 # SECTION 0 — PARAMETERS  (only section you need to edit)
 # ================================================================
 
-DATA_FILE  <- "Exported_Kumu_Australia_30April.xlsx"
+DATA_FILE  <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Australia/Kumu/Exported_Kumu_Australia_30April.xlsx"
 
 # Sub-regions to analyze individually (must match Tags exactly)
 SUBREGIONS <- c("New South Wales", "Queensland",
                 "North Australia", "Western Australia")
 
 # Output folder for plots and CSV files
-OUT_DIR    <- "network_outputs_australia"
+OUT_DIR    <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Australia/Network_Outputs"
 SAVE_PLOTS <- TRUE
 SAVE_CSV   <- TRUE
 

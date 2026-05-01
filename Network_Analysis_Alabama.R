@@ -38,13 +38,13 @@ for (p in pkgs) {
 # SECTION 0 — PARAMETERS  (only section you need to edit)
 # ================================================================
 
-DATA_FILE  <- "Exported_Kumu_Alabama_29April.xlsx"
+DATA_FILE  <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Alabama/Kumu/Exported_Kumu_Alabama_30April.xlsx"
 
 # State groups to analyze individually (must match Tags exactly)
 SUBGROUPS  <- c("Alabama", "Mississippi", "Louisiana",
                 "Florida",  "Texas")
 
-OUT_DIR    <- "network_outputs_alabama"
+OUT_DIR    <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Alabama/Network_Outputs"
 SAVE_PLOTS <- TRUE
 SAVE_CSV   <- TRUE
 
