@@ -37,7 +37,7 @@ for (p in pkgs) {
 # SECTION 0 — PARAMETERS  (only section you need to edit)
 # ================================================================
 
-DATA_FILE  <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Australia/Kumu/Exported_Kumu_Australia_30April.xlsx"
+DATA_FILE  <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Australia/Kumu/Exported_Kumu_Australia_7May.xlsx"
 
 # Sub-regions to analyze individually (must match Tags exactly)
 SUBREGIONS <- c("New South Wales", "Queensland",
