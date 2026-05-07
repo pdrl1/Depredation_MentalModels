@@ -87,6 +87,14 @@ build_wmat <- function(conn_df, nodes) {
   W
 }
 
+#There are 290 rows in the Connections sheet, but only 233 unique From→To pairs. 
+#The other 57 rows are the same pair repeated across multiple regions 
+#(e.g., Target Species Abundance → Depredation appears 3 times, once tagged per region). 
+#Your build_wmat function deliberately aggregates these by averaging weights, 
+#so the full model graph ends up with 233 edges — which is intentional and analytically correct. 
+#But it means the R output will never match Kumu's raw count of 290. This is expected behaviour, not a bug — 
+#the R script is averaging shared connections to avoid inflating the full-model weights.
+
 # Filter connections to a specific sub-region (Tags column is pipe-separated)
 filter_region <- function(conn_df, region) {
   conn_df[!is.na(conn_df$Tags) &
@@ -425,10 +433,16 @@ sub_results <- list()
 
 for (reg in SUBREGIONS) {
   
-  cat(sprintf("\n--- Region: %s ---\n", reg))
-  
   conn_r  <- filter_region(connections, reg)
-  nodes_r <- unique(c(conn_r$From, conn_r$To))
+  
+  # ── FIX: also include elements tagged to this region ──────────
+  nodes_from_elements <- elements$Label[
+    !is.na(elements$Tags) &
+      sapply(elements$Tags, function(t) {
+        reg %in% trimws(strsplit(as.character(t), "\\|")[[1]])
+      })
+  ]
+  nodes_r <- unique(c(conn_r$From, conn_r$To, nodes_from_elements))
   nodes_r <- nodes_r[nodes_r %in% all_nodes]
   
   if (length(nodes_r) < 2) {
@@ -525,6 +539,9 @@ p1 <- res_full$concept_df %>%
   head(25) %>%
   ggplot(aes(x = reorder(Concept, Degree), y = Degree, fill = Type)) +
   geom_col() +
+  geom_text(aes(label = round(Degree, 1)),
+            hjust = -0.1,
+            size = 3) +
   coord_flip() +
   scale_fill_brewer(palette = "Set2") +
   labs(
@@ -532,7 +549,8 @@ p1 <- res_full$concept_df %>%
     subtitle = "Top 25 concepts; fill = concept type",
     x = NULL, y = "Degree (sum of |incoming| + |outgoing| weights)"
   ) +
-  theme_bw(base_size = 9)
+  theme_bw(base_size = 9) +
+  expand_limits(y = max(res_full$concept_df$Degree) * 1.1)
 
 if (SAVE_PLOTS) ggsave(file.path(OUT_DIR, "01_AU_full_degree.pdf"),
                        p1, width = 10, height = 8)
@@ -540,12 +558,12 @@ print(p1)
 
 # ── Plot 2: Centrality comparison across sub-regions ─────────
 # For each sub-region, top-5 concepts by degree
-top3_df <- do.call(rbind, lapply(names(all_results), function(nm) {
+top5_df <- do.call(rbind, lapply(names(all_results), function(nm) {
   head(all_results[[nm]]$concept_df[, c("Concept","Degree")], 5) %>%
     mutate(Level = nm, Rank = row_number())
 }))
 
-p2 <- ggplot(top3_df, aes(x = Rank, y = Degree,
+p2 <- ggplot(top5_df, aes(x = Rank, y = Degree,
                           fill = Level, label = Concept)) +
   geom_col(position = "dodge") +
   geom_text(position = position_dodge(0.9), hjust = -0.1,
@@ -553,7 +571,7 @@ p2 <- ggplot(top3_df, aes(x = Rank, y = Degree,
   facet_wrap(~Level, scales = "free_y") +
   coord_flip() +
   scale_fill_manual(values = model_colours) +
-  labs(title = "Top 3 Concepts by Degree — Australia and Sub-Regions",
+  labs(title = "Top 5 Concepts by Degree — Australia and Sub-Regions",
        x = "Rank", y = "Degree Centrality") +
   theme_bw(base_size = 8) +
   theme(legend.position = "none",
@@ -580,16 +598,21 @@ val_long <- compare_df %>%
 
 p3 <- ggplot(val_long, aes(x = Level, y = Value, fill = Level)) +
   geom_col(show.legend = FALSE) +
+  geom_text(aes(label = round(Value, 2)),
+            vjust = -0.3,
+            size = 3) +
   facet_wrap(~Metric, scales = "free_y") +
   scale_fill_manual(values = model_colours) +
   labs(title = "Validation Metrics — Australia and Sub-Regions",
        x = NULL, y = "Value") +
   theme_bw(base_size = 9) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 7),
-        strip.text  = element_text(face = "bold"))
+        strip.text  = element_text(face = "bold")) +
+  expand_limits(y = max(val_long$Value, na.rm = TRUE) * 1.1)
 
 if (SAVE_PLOTS) ggsave(file.path(OUT_DIR, "03_AU_validation_comparison.pdf"),
                        p3, width = 10, height = 5)
+
 print(p3)
 
 # ── Plot 4: Betweenness — full model, top 20 ──────────────────
@@ -599,12 +622,17 @@ p4 <- res_full$concept_df %>%
   ggplot(aes(x = reorder(Concept, Betweenness),
              y = Betweenness, fill = Type)) +
   geom_col() +
+  geom_text(aes(label = round(Betweenness, 2)),
+            hjust = -0.1,
+            size = 3) +
   coord_flip() +
   scale_fill_brewer(palette = "Set2") +
   labs(title    = "Betweenness Centrality — Australia (Full Model)",
        subtitle  = "Top 20 concepts; high betweenness = key bridge/bottleneck",
        x = NULL, y = "Betweenness (normalised)") +
-  theme_bw(base_size = 9)
+  theme_bw(base_size = 9) +
+  expand_limits(y = max(res_full$concept_df$Betweenness, na.rm = TRUE) * 1.1)
+
 
 if (SAVE_PLOTS) ggsave(file.path(OUT_DIR, "04_AU_full_betweenness.pdf"),
                        p4, width = 10, height = 7)
