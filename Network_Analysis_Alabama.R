@@ -475,24 +475,29 @@ p1 <- res_full$concept_df %>%
   head(25) %>%
   ggplot(aes(x = reorder(Concept, Degree), y = Degree, fill = Type)) +
   geom_col() +
+  geom_text(aes(label = round(Degree, 1)),
+            hjust = -0.1,
+            size = 3) +
   coord_flip() +
   scale_fill_brewer(palette = "Set2") +
   labs(title    = "Degree Centrality — Alabama Gulf Coast (Full Model)",
        subtitle = "Top 25 concepts",
        x = NULL, y = "Degree") +
-  theme_bw(base_size = 9)
+  theme_bw(base_size = 9)+
+  expand_limits(y = max(res_full$concept_df$Degree) * 1.1)
+
 
 if (SAVE_PLOTS) ggsave(file.path(OUT_DIR, "01_AL_full_degree.pdf"),
                        p1, width = 10, height = 8)
 print(p1)
 
 # ── Plot 2: Top-3 per level ───────────────────────────────────
-top3_df <- do.call(rbind, lapply(names(all_results), function(nm) {
+top5_df <- do.call(rbind, lapply(names(all_results), function(nm) {
   head(all_results[[nm]]$concept_df[, c("Concept","Degree")], 5) %>%
     mutate(Level = nm, Rank = row_number())
 }))
 
-p2 <- ggplot(top3_df, aes(x = Rank, y = Degree,
+p2 <- ggplot(top5_df, aes(x = Rank, y = Degree,
                           fill = Level, label = Concept)) +
   geom_col(position = "dodge") +
   geom_text(position = position_dodge(0.9), hjust = -0.1,
@@ -500,7 +505,7 @@ p2 <- ggplot(top3_df, aes(x = Rank, y = Degree,
   facet_wrap(~Level, scales = "free_y") +
   coord_flip() +
   scale_fill_manual(values = model_colours) +
-  labs(title = "Top 3 by Degree — Alabama and State Groups",
+  labs(title = "Top 5 by Degree — Alabama and State Groups",
        x = "Rank", y = "Degree Centrality") +
   theme_bw(base_size = 8) +
   theme(legend.position = "none",
@@ -528,13 +533,18 @@ val_long <- compare_df %>%
 
 p3 <- ggplot(val_long, aes(x = Level, y = Value, fill = Level)) +
   geom_col(show.legend = FALSE) +
+  geom_text(aes(label = round(Value, 2)),
+            vjust = -0.3,
+            size = 3) +
   facet_wrap(~Metric, scales = "free_y") +
   scale_fill_manual(values = model_colours) +
   labs(title = "Validation Metrics — Alabama and State Groups",
        x = NULL, y = "Value") +
   theme_bw(base_size = 9) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 7),
-        strip.text  = element_text(face = "bold"))
+        strip.text  = element_text(face = "bold"))+
+  expand_limits(y = max(val_long$Value, na.rm = TRUE) * 1.1)
+
 
 if (SAVE_PLOTS) ggsave(file.path(OUT_DIR, "03_AL_validation_comparison.pdf"),
                        p3, width = 10, height = 5)
