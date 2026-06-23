@@ -231,8 +231,8 @@ p1c <- bar_facet(full_df, "Outdegree",
 save_plot(p1c, "P1c_outdegree_centrality.pdf", width = 18, height = 9)
 
 png(filename = "P1c_outdegree_centrality.png", 
-    width = 17, height = 6, units = "in", # Set size in inches
-    res = 600)  
+    width = 12, height = 6, units = "in", # Set size in inches
+    res = 1200)  
 p1c
 dev.off()
 
