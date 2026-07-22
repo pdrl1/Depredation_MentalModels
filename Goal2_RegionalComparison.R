@@ -248,18 +248,24 @@ classify_loop_polarity <- function(g, cycle) {
   pol
 }
 
-# 4.5 Prominence = (Occurrence + NormDegree) / 2
-#     For a full model, Occurrence = 1 for all concepts.
-#     NormDegree = min-max normalised degree centrality.
-compute_prominence <- function(node_df) {
-  mx <- max(node_df$degree, na.rm = TRUE)
-  mn <- min(node_df$degree, na.rm = TRUE)
-  node_df %>%
-    mutate(norm_degree = ifelse(mx == mn, 1, (degree - mn) / (mx - mn)),
-           occurrence  = 1,
-           prominence  = (occurrence + norm_degree) / 2)
+# 4.5 Prominence as in Hoffman et al., 2014
+compute_prominence <- function(g, node_df) {
+  # Eigenvector centrality with tie weights (Hoffman et al., 2014)
+  ec <- eigen_centrality(g, directed = TRUE, weights = abs(E(g)$weight))$vector
+  
+  # Min-max normalize eigenvector centrality
+  mx <- max(ec, na.rm = TRUE)
+  mn <- min(ec, na.rm = TRUE)
+  
+  node_df$eigen_centrality <- ec[node_df$name]
+  node_df <- node_df %>%
+    mutate(
+      norm_eigen   = ifelse(mx == mn, 1, (eigen_centrality - mn) / (mx - mn)),
+      occurrence   = 1,
+      prominence   = (occurrence + norm_eigen) / 2
+    )
+  return(node_df)
 }
-
 
 # ============================================================
 # SECTION 5 — COMPUTE ALL METRICS PER SUB-REGION
@@ -291,7 +297,7 @@ compute_all_metrics <- function(g, model_name, verbose = TRUE) {
   node_df$betweenness <- btw
   node_df$closeness   <- clo
   node_df$eigenvector <- eig
-  node_df <- compute_prominence(node_df)
+  node_df <- compute_prominence(g, node_df)
   
   # --- Link polarity ---
   edge_df <- igraph::as_data_frame(g, what = "edges")
