@@ -252,19 +252,24 @@ classify_loop_polarity <- function(g, cycle) {
 # Prominence combines how widespread a concept is (occurrence across
 # sub-models) with how central it is (normalized degree).
 # For a FULL aggregated model, every concept has occurrence = 1.
-# Formula: Prominence = (Occurrence + Norm_Degree) / 2
-# where Norm_Degree is min-max normalized degree within the community.
+# Hoffman et al., 2014
 
-compute_prominence <- function(node_df) {
-  max_d <- max(node_df$degree, na.rm = TRUE)
-  min_d <- min(node_df$degree, na.rm = TRUE)
-  node_df %>%
+compute_prominence <- function(g, node_df) {
+  # Eigenvector centrality with tie weights (Hoffman et al., 2014)
+  ec <- eigen_centrality(g, directed = TRUE, weights = abs(E(g)$weight))$vector
+  
+  # Min-max normalize eigenvector centrality
+  mx <- max(ec, na.rm = TRUE)
+  mn <- min(ec, na.rm = TRUE)
+  
+  node_df$eigen_centrality <- ec[node_df$name]
+  node_df <- node_df %>%
     mutate(
-      norm_degree = ifelse(max_d == min_d, 1,
-                           (degree - min_d) / (max_d - min_d)),
-      occurrence  = 1,   # all concepts appear in the full model
-      prominence  = (occurrence + norm_degree) / 2
+      norm_eigen   = ifelse(mx == mn, 1, (eigen_centrality - mn) / (mx - mn)),
+      occurrence   = 1,
+      prominence   = (occurrence + norm_eigen) / 2
     )
+  return(node_df)
 }
 
 
@@ -393,7 +398,7 @@ compute_all_metrics <- function(g, model_name) {
   # For the full model, Occurrence_i = 1 for all concepts.
   # NormDegree_i = (Degree_i − min(Degree)) / (max(Degree) − min(Degree))
   
-  node_df <- compute_prominence(node_df)
+  node_df <- compute_prominence(g, node_df)
   
   cat("\n--- E. Prominence (top 10) ---\n")
   print(node_df %>% arrange(desc(prominence)) %>% head(10) %>%
@@ -513,6 +518,138 @@ compute_all_metrics <- function(g, model_name) {
 # ---- RUN ----
 metrics_au <- compute_all_metrics(g_au, "Australia")
 metrics_al <- compute_all_metrics(g_al, "Alabama (Gulf Coast USA)")
+
+
+
+# ============================================================
+# SECTION 11 — VISUALISATIONS
+# ============================================================
+
+# ---- 11.1 Indegree vs Outdegree scatter (driver-outcome map) ----
+# Concepts above the diagonal (indegree = outdegree line) are net drivers;
+# those below are net receivers. Labels shown for the top-20 by degree.
+
+plot_io_scatter <- function(metrics_obj, top_n = 20) {
+  nd <- metrics_obj$node_df
+  top_labels <- nd %>% arrange(desc(degree)) %>% head(top_n)
+  
+  ggplot(nd, aes(x = indegree, y = outdegree, colour = concept_type)) +
+    geom_point(alpha = 0.6, size = 2.5) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+                colour = "grey40") +
+    ggrepel::geom_text_repel(
+      data = top_labels,
+      aes(label = str_wrap(name, 25)),
+      size = 2.8, max.overlaps = 15, show.legend = FALSE
+    ) +
+    scale_colour_manual(values = c("Transmitter" = "#E69F00",
+                                   "Receiver"    = "#56B4E9",
+                                   "Ordinary"    = "#009E73",
+                                   "Isolated"    = "grey60")) +
+    labs(
+      title   = paste0("Driver–Outcome Map: ", metrics_obj$model_name),
+      x       = "Indegree (influence RECEIVED, Σ|w|)",
+      y       = "Outdegree (influence EXERTED, Σ|w|)",
+      colour  = "Concept type",
+      caption = "Dashed line: equal driver and outcome weight"
+    ) +
+    theme_bw(base_size = 12)
+}
+
+# Install ggrepel if needed
+if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
+library(ggrepel)
+
+p_au <- plot_io_scatter(metrics_au, top_n = 15)
+p_al <- plot_io_scatter(metrics_al, top_n = 15)
+
+ggsave("IO_scatter_Australia.pdf",   p_au, width = 10, height = 8)
+ggsave("IO_scatter_Alabama.pdf",     p_al, width = 10, height = 8)
+
+
+# ---- 11.2 Comparative bar chart: key structural metrics ----
+
+long_comp <- comparison_table %>%
+  filter(Metric %in% c("Concepts (N)", "Connections (E)",
+                       "Transmitters", "Receivers", "Circuit Rank",
+                       "Reinforcing loops", "Balancing loops")) %>%
+  pivot_longer(cols = c(Australia, Alabama_GulfCoast),
+               names_to = "Model", values_to = "Value") %>%
+  mutate(Value = as.numeric(Value))
+
+p_bar <- ggplot(long_comp, aes(x = Metric, y = Value, fill = Model)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  scale_fill_manual(values = c("Australia" = "#0072B2",
+                               "Alabama_GulfCoast" = "#D55E00")) +
+  labs(title = "Structural comparison: Australia vs Gulf Coast USA",
+       x = NULL, y = "Value", fill = "Region") +
+  theme_bw(base_size = 12)
+
+ggsave("Structural_comparison_barplot.pdf", p_bar, width = 10, height = 6)
+
+
+# ---- 11.3 Betweenness centrality bar charts (top 15) ----
+
+plot_betweenness <- function(metrics_obj, top_n = 15) {
+  metrics_obj$node_df %>%
+    arrange(desc(betweenness)) %>%
+    head(top_n) %>%
+    mutate(name = str_wrap(name, 30),
+           name = factor(name, levels = rev(name))) %>%
+    ggplot(aes(x = name, y = betweenness, fill = concept_type)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_manual(values = c("Transmitter" = "#E69F00",
+                                 "Receiver"    = "#56B4E9",
+                                 "Ordinary"    = "#009E73")) +
+    labs(title = paste0("Betweenness centrality (top ", top_n, "): ",
+                        metrics_obj$model_name),
+         x = NULL, y = "Normalised betweenness", fill = "Type") +
+    theme_bw(base_size = 11)
+}
+
+plot_betweenness(metrics_au)
+plot_betweenness(metrics_al)
+
+ggsave("Betweenness_Australia.pdf",
+       plot_betweenness(metrics_au), width = 10, height = 7)
+ggsave("Betweenness_Alabama.pdf",
+       plot_betweenness(metrics_al), width = 10, height = 7)
+
+
+# ---- 11.4 Prominence bar chart (top 15) ----
+
+plot_prominence <- function(metrics_obj, top_n = 15) {
+  metrics_obj$node_df %>%
+    arrange(desc(prominence)) %>%
+    head(top_n) %>%
+    mutate(name = str_wrap(name, 30),
+           name = factor(name, levels = rev(name))) %>%
+    ggplot(aes(x = name, y = prominence, fill = concept_type)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_manual(values = c("Transmitter" = "#E69F00",
+                                 "Receiver"    = "#56B4E9",
+                                 "Ordinary"    = "#009E73")) +
+    labs(title = paste0("Prominence: ", metrics_obj$model_name),
+         x = NULL, y = "Prominence score", fill = "Type") +
+    theme_bw(base_size = 11)
+}
+
+plot_prominence(metrics_au)
+plot_prominence(metrics_al)
+
+ggsave("Prominence_Australia.pdf",
+       plot_prominence(metrics_au), width = 10, height = 7)
+ggsave("Prominence_Alabama.pdf",
+       plot_prominence(metrics_al), width = 10, height = 7)
+
+cat("\n\nAll plots saved. Analysis complete.\n")
+
+
+
+
 
 
 # ============================================================
@@ -1072,128 +1209,3 @@ if (!is.null(ldr_mdr_result)) {
 }
 
 
-# ============================================================
-# SECTION 11 — VISUALISATIONS
-# ============================================================
-
-# ---- 11.1 Indegree vs Outdegree scatter (driver-outcome map) ----
-# Concepts above the diagonal (indegree = outdegree line) are net drivers;
-# those below are net receivers. Labels shown for the top-20 by degree.
-
-plot_io_scatter <- function(metrics_obj, top_n = 20) {
-  nd <- metrics_obj$node_df
-  top_labels <- nd %>% arrange(desc(degree)) %>% head(top_n)
-  
-  ggplot(nd, aes(x = indegree, y = outdegree, colour = concept_type)) +
-    geom_point(alpha = 0.6, size = 2.5) +
-    geom_abline(slope = 1, intercept = 0, linetype = "dashed",
-                colour = "grey40") +
-    ggrepel::geom_text_repel(
-      data = top_labels,
-      aes(label = str_wrap(name, 25)),
-      size = 2.8, max.overlaps = 15, show.legend = FALSE
-    ) +
-    scale_colour_manual(values = c("Transmitter" = "#E69F00",
-                                   "Receiver"    = "#56B4E9",
-                                   "Ordinary"    = "#009E73",
-                                   "Isolated"    = "grey60")) +
-    labs(
-      title   = paste0("Driver–Outcome Map: ", metrics_obj$model_name),
-      x       = "Indegree (influence RECEIVED, Σ|w|)",
-      y       = "Outdegree (influence EXERTED, Σ|w|)",
-      colour  = "Concept type",
-      caption = "Dashed line: equal driver and outcome weight"
-    ) +
-    theme_bw(base_size = 12)
-}
-
-# Install ggrepel if needed
-if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
-library(ggrepel)
-
-p_au <- plot_io_scatter(metrics_au, top_n = 15)
-p_al <- plot_io_scatter(metrics_al, top_n = 15)
-
-ggsave("IO_scatter_Australia.pdf",   p_au, width = 10, height = 8)
-ggsave("IO_scatter_Alabama.pdf",     p_al, width = 10, height = 8)
-
-
-# ---- 11.2 Comparative bar chart: key structural metrics ----
-
-long_comp <- comparison_table %>%
-  filter(Metric %in% c("Concepts (N)", "Connections (E)",
-                       "Transmitters", "Receivers", "Circuit Rank",
-                       "Reinforcing loops", "Balancing loops")) %>%
-  pivot_longer(cols = c(Australia, Alabama_GulfCoast),
-               names_to = "Model", values_to = "Value") %>%
-  mutate(Value = as.numeric(Value))
-
-p_bar <- ggplot(long_comp, aes(x = Metric, y = Value, fill = Model)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
-  scale_fill_manual(values = c("Australia" = "#0072B2",
-                               "Alabama_GulfCoast" = "#D55E00")) +
-  labs(title = "Structural comparison: Australia vs Gulf Coast USA",
-       x = NULL, y = "Value", fill = "Region") +
-  theme_bw(base_size = 12)
-
-ggsave("Structural_comparison_barplot.pdf", p_bar, width = 10, height = 6)
-
-
-# ---- 11.3 Betweenness centrality bar charts (top 15) ----
-
-plot_betweenness <- function(metrics_obj, top_n = 15) {
-  metrics_obj$node_df %>%
-    arrange(desc(betweenness)) %>%
-    head(top_n) %>%
-    mutate(name = str_wrap(name, 30),
-           name = factor(name, levels = rev(name))) %>%
-    ggplot(aes(x = name, y = betweenness, fill = concept_type)) +
-    geom_col() +
-    coord_flip() +
-    scale_fill_manual(values = c("Transmitter" = "#E69F00",
-                                 "Receiver"    = "#56B4E9",
-                                 "Ordinary"    = "#009E73")) +
-    labs(title = paste0("Betweenness centrality (top ", top_n, "): ",
-                        metrics_obj$model_name),
-         x = NULL, y = "Normalised betweenness", fill = "Type") +
-    theme_bw(base_size = 11)
-}
-
-plot_betweenness(metrics_au)
-plot_betweenness(metrics_al)
-
-ggsave("Betweenness_Australia.pdf",
-       plot_betweenness(metrics_au), width = 10, height = 7)
-ggsave("Betweenness_Alabama.pdf",
-       plot_betweenness(metrics_al), width = 10, height = 7)
-
-
-# ---- 11.4 Prominence bar chart (top 15) ----
-
-plot_prominence <- function(metrics_obj, top_n = 15) {
-  metrics_obj$node_df %>%
-    arrange(desc(prominence)) %>%
-    head(top_n) %>%
-    mutate(name = str_wrap(name, 30),
-           name = factor(name, levels = rev(name))) %>%
-    ggplot(aes(x = name, y = prominence, fill = concept_type)) +
-    geom_col() +
-    coord_flip() +
-    scale_fill_manual(values = c("Transmitter" = "#E69F00",
-                                 "Receiver"    = "#56B4E9",
-                                 "Ordinary"    = "#009E73")) +
-    labs(title = paste0("Prominence: ", metrics_obj$model_name),
-         x = NULL, y = "Prominence score", fill = "Type") +
-    theme_bw(base_size = 11)
-}
-
-plot_prominence(metrics_au)
-plot_prominence(metrics_al)
-
-ggsave("Prominence_Australia.pdf",
-       plot_prominence(metrics_au), width = 10, height = 7)
-ggsave("Prominence_Alabama.pdf",
-       plot_prominence(metrics_al), width = 10, height = 7)
-
-cat("\n\nAll plots saved. Analysis complete.\n")
