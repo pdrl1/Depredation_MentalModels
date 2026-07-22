@@ -48,7 +48,7 @@ SUBGROUPS  <- c("Alabama", "Mississippi", "Louisiana",
 
 OUT_DIR    <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Alabama/Network_Outputs"
 SAVE_PLOTS <- TRUE
-SAVE_CSV   <- TRUE
+SAVE_CSV   <- FALSE
 # Also write Excel (.xlsx) copies of every table. Excel files store real
 # NUMERIC cells, so decimals (e.g. R/T = 0.273) display correctly regardless
 # of your computer's locale. Plain .csv files store "0.273" as text, and
