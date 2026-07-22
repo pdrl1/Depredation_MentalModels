@@ -28,7 +28,7 @@
 
 # ── PACKAGES ──────────────────────────────────────────────────
 pkgs <- c("readxl", "igraph", "dplyr", "ggplot2", "tidyr",
-          "RColorBrewer", "scales")
+          "RColorBrewer", "scales", "openxlsx")
 for (p in pkgs) {
   if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
   library(p, character.only = TRUE)
@@ -46,6 +46,18 @@ SECTORS   <- c("Charter", "Commercial", "Recreational")
 OUT_DIR    <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Network_Outputs"
 SAVE_PLOTS <- TRUE
 SAVE_CSV   <- TRUE
+# Also write Excel (.xlsx) copies of every table. Excel files store real
+# NUMERIC cells, so decimals (e.g. R/T = 0.273) display correctly regardless
+# of your computer's locale. Plain .csv files store "0.273" as text, and
+# Excel set to a comma-decimal locale misreads the dot as a thousands
+# separator — turning 0.273 into 273. Open the .xlsx files, not the .csv.
+SAVE_XLSX  <- TRUE
+
+# Helper: save a data frame as .csv and/or .xlsx (path given WITHOUT extension)
+save_table <- function(df, path_noext) {
+  if (SAVE_CSV)  utils::write.csv(df, paste0(path_noext, ".csv"), row.names = FALSE)
+  if (SAVE_XLSX) openxlsx::write.xlsx(df, paste0(path_noext, ".xlsx"))
+}
 
 # ================================================================
 # SECTION 1 — LOAD DATA
@@ -289,12 +301,16 @@ run_analysis <- function(W, nodes, label) {
   #
   # Average path length: mean across all REACHABLE pairs.
   # Diameter: the longest shortest path.
-  g_dist <- g
-  E(g_dist)$weight <- E(g)$dist_weight
-  avg_path <- round(mean_distance(g_dist, directed = TRUE,
-                                  unconnected = TRUE), 4)
-  diam     <- round(diameter(g_dist, directed = TRUE,
-                             unconnected = TRUE), 4)
+  # Per Table 1, Average Path Length is computed on UNWEIGHTED distance
+  # ("the fewest number of relationships between them"), i.e. a hop count —
+  # NOT the 1/|weight| distance used for betweenness/closeness. weights = NA
+  # forces igraph to ignore edge weights and count edges. Only reachable,
+  # directed pairs are used (Inf/unreachable excluded). Diameter is the
+  # longest of those unweighted paths.
+  D_unw    <- distances(g, mode = "out", weights = NA)
+  finite_d <- D_unw[is.finite(D_unw) & D_unw > 0]
+  avg_path <- if (length(finite_d) > 0) round(mean(finite_d), 4) else NA
+  diam     <- if (length(finite_d) > 0) round(max(finite_d),  4) else NA
   
   # C4. CLUSTERING COEFFICIENT
   # Local (per node): proportion of a node's direct neighbors
@@ -311,6 +327,17 @@ run_analysis <- function(W, nodes, label) {
   # Density naturally decreases as n grows, so compare only
   # across networks of similar size.
   density_val <- round(ecount(g) / (n * (n - 1)), 4)
+  
+  # C5b. LINK POLARITY (Table 1)
+  # Percentage of causal links that are positive (w > 0) vs negative
+  # (w < 0), using the SIGNED aggregated weight matrix W. A pair whose
+  # averaged weight is exactly 0 is not an edge and is excluded, so
+  # pos + neg always equals the reported edge count.
+  pos_links <- sum(W > 0)
+  neg_links <- sum(W < 0)
+  tot_links <- pos_links + neg_links
+  pct_pos   <- if (tot_links > 0) round(100 * pos_links / tot_links, 1) else NA
+  pct_neg   <- if (tot_links > 0) round(100 * neg_links / tot_links, 1) else NA
   
   # C6. FEEDBACK LOOPS (up to length 7)
   # Feedback loops are directed cycles in the FCM graph.
@@ -356,6 +383,8 @@ run_analysis <- function(W, nodes, label) {
       "Average Clustering Coefficient",
       "Global Clustering Coefficient",
       "Density",
+      "Positive Links (%)",
+      "Negative Links (%)",
       "Feedback Loops (≤7 nodes)",
       "Reinforcing Loops",
       "Balancing Loops"
@@ -367,6 +396,7 @@ run_analysis <- function(W, nodes, label) {
       avg_path, diam,
       clust_avg, clust_global,
       density_val,
+      pct_pos, pct_neg,
       n_cycles, n_reinf, n_bal
     ),
     stringsAsFactors = FALSE
@@ -412,12 +442,8 @@ print(head(res_full$concept_df, 20), row.names = FALSE)
 cat("\n--- PART C: Validation Metrics ---\n")
 print(res_full$validation_df, row.names = FALSE)
 
-if (SAVE_CSV) {
-  write.csv(res_full$concept_df,
-            file.path(OUT_DIR, "GA_full_centrality.csv"), row.names = FALSE)
-  write.csv(res_full$validation_df,
-            file.path(OUT_DIR, "GA_full_validation.csv"), row.names = FALSE)
-}
+save_table(res_full$concept_df,    file.path(OUT_DIR, "GA_full_centrality"))
+save_table(res_full$validation_df, file.path(OUT_DIR, "GA_full_validation"))
 
 # ================================================================
 # SECTION 5 — RUN ANALYSIS: EACH SECTOR
@@ -461,14 +487,11 @@ for (sec in SECTORS) {
   cat("  Validation:\n")
   print(res_s$validation_df, row.names = FALSE)
   
-  if (SAVE_CSV) {
-    write.csv(res_s$concept_df,
-              file.path(OUT_DIR, sprintf("GA_%s_centrality.csv", sec)),
-              row.names = FALSE)
-    write.csv(res_s$validation_df,
-              file.path(OUT_DIR, sprintf("GA_%s_validation.csv", sec)),
-              row.names = FALSE)
-  }
+  safe_name <- gsub(" ", "_", sec)
+  save_table(res_s$concept_df,
+             file.path(OUT_DIR, sprintf("GA_%s_centrality", safe_name)))
+  save_table(res_s$validation_df,
+             file.path(OUT_DIR, sprintf("GA_%s_validation", safe_name)))
 }
 
 # ================================================================
@@ -493,6 +516,7 @@ key_cols <- c("Level", "Concepts (nodes)", "Connections (edges, aggregated)",
               "Transmitters", "Receivers", "R/T Ratio",
               "Average Path Length", "Diameter",
               "Average Clustering Coefficient", "Density",
+              "Positive Links (%)", "Negative Links (%)",
               "Feedback Loops (≤7 nodes)", "Reinforcing Loops", "Balancing Loops")
 key_cols <- key_cols[key_cols %in% names(compare_df)]
 cat("\nKey metrics:\n")
@@ -504,9 +528,7 @@ for (nm in names(all_results)) {
   cat(sprintf("  %-22s: %s\n", nm, paste(top5, collapse = ", ")))
 }
 
-if (SAVE_CSV) write.csv(compare_df,
-                        file.path(OUT_DIR, "GA_comparison_table.csv"),
-                        row.names = FALSE)
+save_table(compare_df, file.path(OUT_DIR, "GA_comparison_table"))
 
 
 cat(sprintf("\nAll outputs saved to: %s\n", OUT_DIR))
