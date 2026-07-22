@@ -25,12 +25,11 @@
 
 pkgs <- c("dplyr", "tidyr", "ggplot2", "scales",
           "stringr", "purrr", "forcats", "readr",
-          "RColorBrewer", "ggrepel", "patchwork", "tidytext")
+          "RColorBrewer", "ggrepel", "patchwork", "tidytext", "readxl")
 for (p in pkgs) {
   if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
   library(p, character.only = TRUE)
 }
-
 
 # ── SECTION 1 — PARAMETERS ───────────────────────────────────
 
@@ -64,14 +63,14 @@ TYPE_ORDER <- c("Transmitter", "Ordinary", "Receiver")
 # ── SECTION 2 — LOAD DATA ────────────────────────────────────
 
 load_region <- function(dir_path, region_label, prefix) {
-  csv_files <- list.files(dir_path,
-                          pattern = paste0("^", prefix, ".*_centrality\\.csv$"),
-                          full.names = TRUE)
-  if (length(csv_files) == 0)
-    stop(sprintf("No centrality CSVs found for %s in: %s",
+  xlsx_files <- list.files(dir_path,
+                           pattern = paste0("^", prefix, ".*_centrality\\.xlsx$"),
+                           full.names = TRUE)
+  if (length(xlsx_files) == 0)
+    stop(sprintf("No centrality XLSXs found for %s in: %s",
                  region_label, dir_path))
   
-  map_dfr(csv_files, function(f) {
+  map_dfr(xlsx_files, function(f) {
     base     <- tools::file_path_sans_ext(basename(f))
     base     <- sub("_centrality$", "", base)
     model    <- sub(paste0("^", prefix, "_"), "", base)
@@ -79,7 +78,7 @@ load_region <- function(dir_path, region_label, prefix) {
     scope    <- if (tolower(model) == "full") "full" else "sub"
     model_id <- paste0(prefix, "_", str_replace_all(model, " ", "_"))
     
-    read_csv(f, show_col_types = FALSE) %>%
+    read_xlsx(f) %>%
       mutate(
         Region   = region_label,
         Model    = model,
@@ -89,14 +88,15 @@ load_region <- function(dir_path, region_label, prefix) {
   })
 }
 
+
 if (!dir.exists(OUT_DIR)) dir.create(OUT_DIR, recursive = TRUE)
 
 all_df <- bind_rows(
   load_region(AU_DIR, "Australia",  "AU"),
-  load_region(AL_DIR, "Gulf Coast", "AL")
+  load_region(AL_DIR, "USGC", "AL")
 ) %>%
   mutate(
-    Region = factor(Region, levels = c("Australia", "Gulf Coast")),
+    Region = factor(Region, levels = c("Australia", "USGC")),
     Type   = factor(Type,   levels = TYPE_ORDER)
   )
 
