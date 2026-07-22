@@ -16,10 +16,12 @@
 #   Part A — Concept types:   Transmitter, Receiver, Ordinary
 #   Part B — Centrality:      Indegree, Outdegree, Degree,
 #                             Betweenness, Closeness,
-#                             Eigenvector, Katz
+#                             Eigenvector, Prominence, Katz
 #   Part C — Validation:      N concepts & relationships,
 #                             R/T ratio, Avg path length,
-#                             Diameter, Clustering, Density
+#                             Diameter, Clustering, Density,
+#                             Feedback Loops, Reinforcing Loops,
+#                             Balancing Loops
 #
 # HOW TO RUN:
 #   Place this file in the same folder as the Kumu .xlsx and
@@ -111,27 +113,31 @@ run_analysis <- function(W, nodes, label) {
   g <- graph_from_data_frame(edge_df, directed = TRUE, vertices = nodes)
   E(g)$weight <- edge_df$weight
   
+  # Distance weights: 1/|w| so stronger links = shorter paths.
+  # Used consistently for betweenness and closeness.
+  E(g)$dist_weight <- 1 / E(g)$weight
+  
   # ── PART A: CONCEPT CLASSIFICATION ──────────────────────────
   #
   # TRANSMITTER: has outgoing connections, NO incoming.
-  #   The concept influences others but nothing in the model
-  #   influences it. Typically an external driver: e.g., weather,
-  #   regulatory context, shark life history traits.
-  #   → Pure input / root cause.
+  #   This concept is not influenced by any other concept in the
+  #   map — it is an external driver or independent variable.
+  #   Example: weather conditions, national regulations.
+  #   Structural role: ROOT CAUSE / ENTRY POINT.
   #
   # RECEIVER: has incoming connections, NO outgoing.
-  #   The concept is affected by others but exerts no further
-  #   influence. Typically a final outcome: e.g., fisher income,
-  #   wellbeing, ecological population change.
-  #   → Pure outcome / endpoint.
+  #   This concept is affected by others but does not cascade
+  #   further. It is a final endpoint or impact variable.
+  #   Example: fisher wellbeing, economic loss.
+  #   Structural role: OUTCOME / ENDPOINT.
   #
-  # ORDINARY: has BOTH incoming and outgoing connections.
-  #   A mediating variable that is both caused and causal.
-  #   Most FCM nodes are ordinary.
-  #   → Mediator / intermediate variable.
+  # ORDINARY: has both incoming and outgoing connections.
+  #   Mediated by upstream variables and itself mediates
+  #   downstream ones. The vast majority of FCM nodes fall here.
+  #   Structural role: MEDIATOR / INTERMEDIATE VARIABLE.
   #
-  # ISOLATED: no connections at all. Rare; may indicate a data
-  #   entry issue or a concept that was listed but not linked.
+  # ISOLATED: no connections at all.
+  #   Rare. Possibly a concept added but never linked.
   
   indeg_w  <- colSums(abs(W))
   outdeg_w <- rowSums(abs(W))
@@ -162,40 +168,41 @@ run_analysis <- function(W, nodes, label) {
   # B3. DEGREE CENTRALITY
   # = indegree + outdegree
   # Total connection weight — measures overall embeddedness.
-  # The most commonly reported FCM centrality measure.
+  # The most commonly used centrality measure in FCM literature.
   # High degree = key concept regardless of causal direction.
   degree <- indegree + outdegree
   
-  # B4. BETWEENNESS CENTRALITY
+  # B4. BETWEENNESS CENTRALITY (weighted, normalised)
   # = fraction of all shortest paths (between any pair of nodes)
   #   that pass through this node.
-  # Weighted version: path length = sum of 1/|weight| along edges
-  # (stronger link = shorter = more preferred route).
+  # Weighted: path length = sum of dist_weight = sum of 1/|weight|
+  # (stronger link = shorter = more preferred route), following
+  # Opsahl et al. (2010).
   # High betweenness → bottleneck / bridge concept.
   # Removing it would most disrupt information flow.
   # Practical use: identify leverage points for management.
   btw <- tryCatch(
-    setNames(betweenness(g, weights = 1 / E(g)$weight,
+    setNames(betweenness(g, weights = E(g)$dist_weight,
                          directed = TRUE, normalized = TRUE),
              V(g)$name),
     error = function(e) setNames(rep(0, n), nodes)
   )
   
-  # B5. CLOSENESS CENTRALITY (harmonic)
-  # = mean of (1 / distance) to all reachable nodes
-  # Using harmonic mean handles disconnected graphs: unreachable
-  # nodes contribute 0 rather than inflating the average.
-  # High closeness → concept can reach (or be reached from) all
-  # others quickly → fast propagation of its effects.
+  # B5. CLOSENESS CENTRALITY (outgoing, normalised)
+  # igraph outgoing closeness, normalised by (N-1).
+  # For each node: (N-1) / sum of shortest-path distances to all
+  # reachable nodes. Unreachable pairs are excluded.
+  # Distances weighted by dist_weight (Opsahl et al., 2010).
+  # High closeness → concept spreads its effects rapidly through
+  # the network via directed shortest paths.
   # Complements betweenness: measures spread speed, not just
   # position on paths.
-  closeness <- sapply(nodes, function(v) {
-    d <- distances(g, v = v, to = nodes,
-                   weights = 1 / E(g)$weight, mode = "out")
-    d <- d[d > 0 & is.finite(d)]
-    if (length(d) == 0) return(0)
-    mean(1 / d)
-  })
+  clo <- tryCatch(
+    setNames(closeness(g, weights = E(g)$dist_weight,
+                       normalized = TRUE, mode = "out"),
+             V(g)$name),
+    error = function(e) setNames(rep(0, n), nodes)
+  )
   
   # B6. EIGENVECTOR CENTRALITY
   # = importance score that weights a node's connections by the
@@ -209,7 +216,20 @@ run_analysis <- function(W, nodes, label) {
     setNames(ev$vector, V(g)$name)
   }, error = function(e) setNames(rep(0, n), nodes))
   
-  # B7. KATZ CENTRALITY
+  # B7. PROMINENCE (Hoffman et al., 2014)
+  # Formula: P(c_i) = [f(c_i) + EC_norm(c_i)] / 2
+  # where f(c_i) = 1 for all concepts in a fully aggregated model
+  # (each concept appears in every participant's map),
+  # and EC_norm is eigenvector centrality min-max normalised to [0,1].
+  # Identifies concepts that are both structurally central
+  # (high eigenvector) and frequently mentioned by participants.
+  ec_vals    <- as.numeric(eig[nodes])
+  ec_mn      <- min(ec_vals, na.rm = TRUE)
+  ec_mx      <- max(ec_vals, na.rm = TRUE)
+  norm_eigen <- if (ec_mx == ec_mn) rep(1, n) else (ec_vals - ec_mn) / (ec_mx - ec_mn)
+  prominence <- (1 + norm_eigen) / 2   # occurrence = 1 for all concepts
+  
+  # B8. KATZ CENTRALITY
   # Extends eigenvector centrality by adding a small baseline
   # importance β to every node (default β=1), preventing zero
   # scores in acyclic sub-graphs.
@@ -228,13 +248,14 @@ run_analysis <- function(W, nodes, label) {
   concept_df <- data.frame(
     Concept     = nodes,
     Type        = type,
-    Indegree    = round(indegree,  4),
-    Outdegree   = round(outdegree, 4),
-    Degree      = round(degree,    4),
-    Betweenness = round(as.numeric(btw[nodes]),  4),
-    Closeness   = round(closeness,               4),
-    Eigenvector = round(as.numeric(eig[nodes]),  4),
-    Katz        = round(katz,                    4),
+    Indegree    = round(indegree,                        4),
+    Outdegree   = round(outdegree,                       4),
+    Degree      = round(degree,                          4),
+    Betweenness = round(as.numeric(btw[nodes]),          4),
+    Closeness   = round(as.numeric(clo[nodes]),          4),
+    Eigenvector = round(as.numeric(eig[nodes]),          4),
+    Prominence  = round(prominence,                      4),
+    Katz        = round(katz,                            4),
     stringsAsFactors = FALSE
   ) %>% arrange(desc(Degree))
   
@@ -256,17 +277,16 @@ run_analysis <- function(W, nodes, label) {
   rt_ratio <- if (n_tran > 0) round(n_recv / n_tran, 3) else NA
   
   # C3. SHORTEST PATH METRICS
-  # All distances weighted by 1/|weight| (stronger = shorter).
+  # All distances weighted by dist_weight = 1/|weight|
+  # (stronger = shorter).
   #
   # Average path length: mean finite pairwise distance.
   #   Small → influence travels quickly across the whole map.
   #
   # Diameter: longest shortest path in the network.
   #   Indicates the maximum number of "hops" in a causal chain.
-  #   Very small diameter relative to n may signal that
-  #   participants did not elaborate complex causal sequences.
   g_dist <- g
-  E(g_dist)$weight <- 1 / E(g)$weight
+  E(g_dist)$weight <- E(g)$dist_weight
   avg_path <- round(mean_distance(g_dist, directed = TRUE,
                                   unconnected = TRUE), 4)
   diam     <- round(diameter(g_dist, directed = TRUE,
@@ -278,8 +298,6 @@ run_analysis <- function(W, nodes, label) {
   # Average local clustering: mean across all nodes.
   # Global clustering: fraction of "open triples" closed
   # into triangles across the entire network.
-  # Low clustering = participants added relationships selectively
-  # (desirable). High clustering may indicate over-elaboration.
   clust_local  <- transitivity(g, type = "local", isolates = "zero")
   clust_avg    <- round(mean(clust_local, na.rm = TRUE), 4)
   clust_global <- round(transitivity(g, type = "global"),  4)
@@ -290,6 +308,33 @@ run_analysis <- function(W, nodes, label) {
   # Low density → participants were selective (desirable).
   # Density naturally decreases as n grows.
   density_val <- round(ecount(g) / (n * (n - 1)), 4)
+  
+  # C6. FEEDBACK LOOPS (up to length 7)
+  # Feedback loops are directed cycles in the FCM graph.
+  # Loop POLARITY is determined by the product of the signs of
+  # edge weights around the cycle, using the original signed W.
+  #   Product > 0 → Reinforcing (positive feedback) loop
+  #   Product < 0 → Balancing (negative feedback) loop
+  # Only cycles of length ≤ 7 are enumerated (computationally
+  # tractable; longer loops have negligible dynamic effect).
+  cycles_all <- tryCatch(igraph::simple_cycles(g),
+                         error = function(e) list())
+  cycles     <- Filter(function(x) length(x) <= 7, cycles_all)
+  n_cycles   <- length(cycles)
+  
+  loop_pol <- if (n_cycles > 0) {
+    sapply(cycles, function(cyc) {
+      v_seq <- V(g)$name[cyc]
+      n_c   <- length(v_seq)
+      prod(sapply(seq_len(n_c), function(i) {
+        j <- if (i == n_c) 1L else i + 1L
+        sign(W[v_seq[i], v_seq[j]])
+      }))
+    })
+  } else numeric(0)
+  
+  n_reinf <- sum(loop_pol > 0)
+  n_bal   <- sum(loop_pol < 0)
   
   n_ord  <- sum(type == "Ordinary")
   n_isol <- sum(type == "Isolated")
@@ -307,7 +352,10 @@ run_analysis <- function(W, nodes, label) {
       "Diameter",
       "Average Clustering Coefficient",
       "Global Clustering Coefficient",
-      "Density"
+      "Density",
+      "Feedback Loops (≤7 nodes)",
+      "Reinforcing Loops",
+      "Balancing Loops"
     ),
     Value = c(
       n_concepts, n_edges,
@@ -315,7 +363,8 @@ run_analysis <- function(W, nodes, label) {
       rt_ratio,
       avg_path, diam,
       clust_avg, clust_global,
-      density_val
+      density_val,
+      n_cycles, n_reinf, n_bal
     ),
     stringsAsFactors = FALSE
   )
@@ -440,7 +489,8 @@ compare_df <- do.call(rbind, lapply(names(all_results), function(nm) {
 key_cols <- c("Level", "Concepts (nodes)", "Connections (edges, aggregated)",
               "Transmitters", "Receivers", "R/T Ratio",
               "Average Path Length", "Diameter",
-              "Average Clustering Coefficient", "Density")
+              "Average Clustering Coefficient", "Density",
+              "Feedback Loops (≤7 nodes)", "Reinforcing Loops", "Balancing Loops")
 key_cols <- key_cols[key_cols %in% names(compare_df)]
 cat("\nKey metrics:\n")
 print(compare_df[, key_cols], row.names = FALSE)
@@ -519,16 +569,10 @@ print(p2)
 val_long <- compare_df %>%
   select(Level,
          Density,
-         Average.Clustering.Coefficient,
-         R.T.Ratio) %>%
+         `Average Clustering Coefficient`,
+         `R/T Ratio`) %>%
   pivot_longer(-Level, names_to = "Metric", values_to = "Value") %>%
-  mutate(
-    Value  = as.numeric(Value),
-    Metric = recode(Metric,
-                    "Average.Clustering.Coefficient" = "Avg Clustering Coefficient",
-                    "R.T.Ratio"                      = "R/T Ratio",
-                    "Density"                        = "Density")
-  )
+  mutate(Value = as.numeric(Value))
 
 
 p3 <- ggplot(val_long, aes(x = Level, y = Value, fill = Level)) +
