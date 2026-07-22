@@ -483,14 +483,12 @@ for (reg in SUBREGIONS) {
   
   conn_r  <- filter_region(connections, reg)
   
-  # ── FIX: also include elements tagged to this region ──────────
-  nodes_from_elements <- elements$Label[
-    !is.na(elements$Tags) &
-      sapply(elements$Tags, function(t) {
-        reg %in% trimws(strsplit(as.character(t), "\\|")[[1]])
-      })
-  ]
-  nodes_r <- unique(c(conn_r$From, conn_r$To, nodes_from_elements))
+  # Derive sub-region nodes from connections only.
+  # (Nodes with no connections in this region are isolated and
+  #  do not contribute to any structural metric — excluding them
+  #  avoids inflating n, density, path lengths, and R/T ratio
+  #  when the elements Tags field is not strictly per-region.)
+  nodes_r <- unique(c(conn_r$From, conn_r$To))
   nodes_r <- nodes_r[nodes_r %in% all_nodes]
   
   if (length(nodes_r) < 2) {
@@ -543,8 +541,8 @@ all_results <- c(list("Australia (full)" = res_full), sub_results)
 compare_df <- do.call(rbind, lapply(names(all_results), function(nm) {
   vdf <- all_results[[nm]]$validation_df
   row <- setNames(as.list(vdf$Value), vdf$Metric)
-  data.frame(Level = nm, as.data.frame(row, stringsAsFactors = FALSE),
-             check.names = FALSE, stringsAsFactors = FALSE)
+  data.frame(Level = nm, as.data.frame(row, check.names = FALSE,
+                                       stringsAsFactors = FALSE))
 }))
 
 # Select key metrics for the comparison print
@@ -568,6 +566,7 @@ for (nm in names(all_results)) {
 if (SAVE_CSV) write.csv(compare_df,
                         file.path(OUT_DIR, "AU_comparison_table.csv"),
                         row.names = FALSE)
+
 
 cat(sprintf("\nAll outputs saved to: %s\n", OUT_DIR))
 cat("Analysis complete.\n")
