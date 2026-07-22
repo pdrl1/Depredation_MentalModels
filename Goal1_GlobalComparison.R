@@ -394,10 +394,7 @@ compute_all_metrics <- function(g, model_name) {
   # ----------------------------------------------------------------
   # 5.5  PROMINENCE
   # ----------------------------------------------------------------
-  # Prominence_i = (Occurrence_i + NormDegree_i) / 2
-  # For the full model, Occurrence_i = 1 for all concepts.
-  # NormDegree_i = (Degree_i − min(Degree)) / (max(Degree) − min(Degree))
-  
+
   node_df <- compute_prominence(g, node_df)
   
   cat("\n--- E. Prominence (top 10) ---\n")
@@ -646,6 +643,144 @@ ggsave("Prominence_Alabama.pdf",
        plot_prominence(metrics_al), width = 10, height = 7)
 
 cat("\n\nAll plots saved. Analysis complete.\n")
+
+
+
+# BUILD COMBINED NODE TABLE FROM GOAL 1 METRICS
+# ================================================================
+full_df_g1 <- bind_rows(
+  metrics_au$node_df %>% mutate(Region = metrics_au$model_name),
+  metrics_al$node_df %>% mutate(Region = metrics_al$model_name)
+) %>%
+  rename(
+    Concept     = name,
+    Type        = concept_type,
+    Degree      = degree,
+    Indegree    = indegree,
+    Outdegree   = outdegree,
+    Closeness   = closeness,
+    Betweenness = betweenness
+  )
+
+
+# Shared plot theme
+theme_fcm <- function(base_size = 10) {
+  theme_bw(base_size = base_size) %+replace%
+    theme(
+      strip.text = element_text(
+        face = "bold",
+        size = base_size + 1,
+        margin = margin(b = 6)),
+      strip.background = element_rect(colour = NA),
+      axis.text.y      = element_text(size = base_size - 2),
+      axis.text.x      = element_text(size = base_size - 2),
+      panel.grid.minor = element_blank(),
+      legend.position  = "bottom",
+      legend.title     = element_text(size = base_size - 1),
+      plot.title       = element_text(face = "bold", size = base_size + 2, margin = margin(b = 4)),
+      plot.subtitle    = element_text(size = base_size - 1, margin=margin(b=8))
+    )
+}
+
+#  ------- PLOT G1-6 — INDEGREE vs OUTDEGREE -------
+cat("Plot G1-6: Indegree vs Outdegree...\n")
+
+label_df_g1 <- full_df_g1 %>%
+  group_by(Region) %>%
+  slice_max(Degree, n = 12, with_ties = FALSE) %>%
+  ungroup()
+
+p_g1_6 <- ggplot(full_df_g1,
+                 aes(x = Indegree, y = Outdegree,
+                     colour = Type, size = Degree)) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed", colour = "grey60", linewidth = 0.5) +
+  geom_point(alpha = 0.65) +
+  geom_label_repel(
+    data          = label_df_g1,
+    aes(label     = str_wrap(Concept, 20)),
+    size          = 2.3,
+    label.padding = unit(0.12, "lines"),
+    max.overlaps  = 12,
+    show.legend   = FALSE,
+    colour        = "grey20",
+    fill          = alpha("white", 0.8)
+  ) +
+  scale_colour_manual(values = c("Transmitter" = "#E69F00",
+                                 "Receiver"    = "#56B4E9",
+                                 "Ordinary"    = "#009E73"), drop = FALSE) +
+  scale_size_continuous(range = c(1.5, 6), guide = "none") +
+  facet_wrap(~ Region, nrow = 1, scales = "free") +
+  labs(
+    title    = "Indegree vs Outdegree — Full Models (Global Comparison)",
+    subtitle = "Above diagonal = more outgoing (driver)  |  Below = more incoming (receiver)  |  Size = Degree",
+    x        = "Indegree (sum of incoming |weights|)",
+    y        = "Outdegree (sum of outgoing |weights|)",
+    colour   = "Concept type"
+  ) +
+  theme_fcm()
+
+png(filename = "G1_P6_indegree_vs_outdegree.png",
+    width = 17, height = 8, units = "in", res = 600)
+p_g1_6
+dev.off()
+
+# ----- PLOT G1-6b — CLOSENESS vs BETWEENNESS -------
+
+cat("Plot G1-6b: Closeness vs Betweenness...\n")
+
+label_df_g1_cb <- full_df_g1 %>%
+  group_by(Region) %>%
+  slice_max(Degree, n = 12, with_ties = FALSE) %>%
+  ungroup()
+
+quad_lines_g1 <- full_df_g1 %>%
+  group_by(Region) %>%
+  summarise(
+    med_closeness   = median(Closeness,   na.rm = TRUE),
+    med_betweenness = median(Betweenness, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+p_g1_6b <- ggplot(full_df_g1,
+                  aes(x = Closeness, y = Betweenness,
+                      colour = Type, size = Degree)) +
+  geom_vline(data = quad_lines_g1,
+             aes(xintercept = med_closeness),
+             linetype = "dashed", colour = "grey70", linewidth = 0.4) +
+  geom_hline(data = quad_lines_g1,
+             aes(yintercept = med_betweenness),
+             linetype = "dashed", colour = "grey70", linewidth = 0.4) +
+  geom_point(alpha = 0.65) +
+  geom_label_repel(
+    data          = label_df_g1_cb,
+    aes(label     = str_wrap(Concept, 20)),
+    size          = 2.3,
+    label.padding = unit(0.12, "lines"),
+    max.overlaps  = 12,
+    show.legend   = FALSE,
+    colour        = "grey20",
+    fill          = alpha("white", 0.8)
+  ) +
+  scale_colour_manual(values = c("Transmitter" = "#E69F00",
+                                 "Receiver"    = "#56B4E9",
+                                 "Ordinary"    = "#009E73"), drop = FALSE) +
+  scale_size_continuous(range = c(1.5, 6), guide = "none") +
+  facet_wrap(~ Region, nrow = 1, scales = "free") +
+  labs(
+    title    = "Closeness vs Betweenness Centrality — Full Models (Global Comparison)",
+    subtitle = "Top-right = fast broadcaster AND bridge  |  Top-left = bottleneck only  |  Bottom-right = broadcaster only\nDashed lines = per-region medians  |  Size = Degree",
+    x        = "Closeness (normalised, outgoing; higher = faster broadcaster)",
+    y        = "Betweenness (normalised; higher = more of a bridge/bottleneck)",
+    colour   = "Concept type"
+  ) +
+  theme_fcm()
+
+png(filename = "G1_P6b_closeness_vs_betweenness.png",
+    width = 17, height = 8, units = "in", res = 600)
+p_g1_6b
+dev.off()
+
 
 
 
