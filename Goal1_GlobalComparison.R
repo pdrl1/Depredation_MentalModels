@@ -81,7 +81,7 @@ parse_connections <- function(conn_df) {
       # Parse signed numeric strength
       strength_num = suppressWarnings(as.numeric(Strength))
     ) %>%
-    filter(!is.na(From), !is.na(To))
+    filter(!is.na(From), !is.na(To), !is.na(strength_num))
 }
 
 au_conn <- parse_connections(au_connections)
@@ -201,6 +201,7 @@ classify_concepts <- function(node_df) {
 
 find_simple_cycles <- function(g, max_length = 7) {
   n       <- vcount(g)
+  if (n < 2) return(list())        # guard (matches Goal 2)
   vnames  <- V(g)$name
   # Build adjacency list (index-based)
   adj     <- igraph::as_adj_list(g, mode = "out")
@@ -294,7 +295,7 @@ compute_all_metrics <- function(g, model_name) {
   # Link density: fraction of all possible directed edges that exist.
   # Formula: D = E / [N × (N − 1)]
   # Interpretation: a dense model implies more perceived interconnections.
-  density <- E_count / (N * (N - 1))
+  density <- if (N > 1) E_count / (N * (N - 1)) else 0   # guard (matches Goal 2)
   
   cat("\n--- A. Basic structure ---\n")
   cat("  Concepts (N):      ", N, "\n")
@@ -315,7 +316,7 @@ compute_all_metrics <- function(g, model_name) {
   n_ord <- sum(node_df$concept_type == "Ordinary")
   n_iso <- sum(node_df$concept_type == "Isolated")
   
-  RT_ratio <- ifelse(n_tx == 0, 0, n_rx / n_tx)
+  RT_ratio <- if (n_tx > 0) n_rx / n_tx else NA_real_   # NA when undefined (matches Goal 2)
   
   cat("\n--- B. Concept types ---\n")
   cat("  Transmitters (pure drivers, indegree = 0): ", n_tx,  "\n")
@@ -429,8 +430,8 @@ compute_all_metrics <- function(g, model_name) {
   
   dist_mat  <- distances(g, weights = NA)
   fin_dists <- dist_mat[is.finite(dist_mat) & dist_mat > 0]
-  apl       <- mean(fin_dists, na.rm = TRUE)
-  diam      <- max(dist_mat[is.finite(dist_mat)], na.rm = TRUE)
+  apl       <- if (length(fin_dists) > 0) mean(fin_dists) else NA_real_          # guard (matches Goal 2)
+  diam      <- if (length(fin_dists) > 0) max(dist_mat[is.finite(dist_mat)]) else NA_real_
   
   cat("\n--- G. Path metrics ---\n")
   cat("  Average path length (APL):", round(apl,  3), "\n")
@@ -477,7 +478,7 @@ compute_all_metrics <- function(g, model_name) {
   cat("  Circuit rank (min independent loops):", circ_rank, "\n")
   cat("  Finding actual simple cycles (length ≤ 7) ...\n")
   
-  cycles <- find_simple_cycles(g, max_length = 7)
+  cycles <- if (N >= 2 && E_count >= 2) find_simple_cycles(g, max_length = 7) else list()  # guard (matches Goal 2)
   cat("  Simple cycles found (length ≤ 7):   ", length(cycles), "\n")
   
   n_reinf <- 0; n_bal <- 0; n_na <- 0
@@ -516,6 +517,47 @@ compute_all_metrics <- function(g, model_name) {
 metrics_au <- compute_all_metrics(g_au, "Australia")
 metrics_al <- compute_all_metrics(g_al, "Alabama (Gulf Coast USA)")
 
+
+
+
+# ============================================================
+# SECTION 10b — GALVESTON (THIRD STANDALONE MODEL)
+# ============================================================
+# Galveston is added ONLY for the metric-calculation process, as a third
+# standalone model computed with exactly the same pipeline as Australia and
+# Alabama (parse → deduplicate_edges → build_graph → compute_all_metrics).
+# It is deliberately NOT added to comparison_table, full_df_g1, or any plot,
+# so every figure below still shows only Australia and Gulf Coast.
+#
+# Strength scale: integer ±1/±2 (same as AU/GC) — no rescaling applied.
+# >>> SET THE FILE PATH BELOW to the Galveston Kumu export before running. <<<
+
+GV_FILE <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Kumu/Exported_Kumu_Galveston_30April.xlsx"  # <-- EDIT THIS PATH
+
+gv_elements    <- read_excel(GV_FILE, sheet = "Elements")
+gv_connections <- read_excel(GV_FILE, sheet = "Connections")
+
+cat("Raw rows — Galveston elements:", nrow(gv_elements),
+    " | Galveston connections:", nrow(gv_connections), "\n")
+
+# Strength-scale check: confirm integer ±1/±2 (no ±0.5/±1.0 Mental Modeler values)
+gv_strength_vals <- sort(unique(suppressWarnings(as.numeric(gv_connections$Strength))))
+cat("Galveston unique Strength values:",
+    paste(gv_strength_vals, collapse = ", "), "\n")
+if (any(abs(gv_strength_vals) > 0 & abs(gv_strength_vals) < 1, na.rm = TRUE))
+  warning("Galveston Strength contains |value| < 1 (looks like the ±0.5/±1.0 ",
+          "Mental Modeler scale). Multiply by 2 to match the integer ±1/±2 ",
+          "scale used for Australia and Gulf Coast before trusting weighted metrics.")
+
+gv_conn  <- parse_connections(gv_connections)
+gv_edges <- deduplicate_edges(gv_conn)
+gv_nodes <- unique(gv_elements$Label)
+
+cat("After deduplication:\n")
+cat("  Galveston — nodes:", length(gv_nodes), " | edges:", nrow(gv_edges), "\n")
+
+g_gv       <- build_graph(gv_nodes, gv_edges)
+metrics_gv <- compute_all_metrics(g_gv, "Galveston")
 
 
 # ============================================================
