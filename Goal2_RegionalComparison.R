@@ -384,96 +384,64 @@ gc_metrics <- setNames(
   GC_SUBREGIONS)
 
 
+
 # ============================================================
-# SECTION 6 — JACCARD SIMILARITY (CONCEPT AND LINK LEVEL)
+# SECTION 6b — GALVESTON (NEW WORKSHOP, SPLIT BY FISHERY)
 # ============================================================
-# Jaccard similarity quantifies the proportion of a combined
-# concept or link pool that is shared between two sub-regions:
+# Galveston is added to Goal 2 as a third workshop, divided into its three
+# fishery groups exactly as Australia is divided into sub-regions:
+#   Recreational · Charter · Commercial
+# The fishery is recorded in the Tags column (pipe-separated), so the same
+# filter_by_tag() → build_subregion_graph() → compute_all_metrics() pipeline
+# used for AU and GC applies unchanged.
 #
-#   J(A, B) = |A ∩ B| / |A ∪ B|
+# Galveston is NOT added to au_metrics / gc_metrics and is NOT plotted, so the
+# figures below still show only Australia and Gulf Coast. It DOES appear in the
+# metrics comparison table (Section 10) via gv_tbl.
 #
-# Range: 0 = no overlap, 1 = identical sets.
-# Two matrices are produced for each workshop:
-#   • Concept Jaccard — based on node sets (what variables are shared?)
-#   • Link Jaccard    — based on From→To pairs (what causal links are shared?)
-#
-# Reference: Jaccard (1912); used in FCM comparison by Gray et al. (2014).
+# Strength scale: integer ±1/±2 (same as AU/GC) — no rescaling applied.
+# >>> SET THE FILE PATH BELOW to the Galveston Kumu export before running. <<<
 
-jaccard <- function(a, b) {
-  i <- length(intersect(a, b))
-  u <- length(union(a, b))
-  if (u == 0) return(NA_real_)
-  i / u
+GV_FILE <- "~/Library/CloudStorage/GoogleDrive-paula.dominguez@arratiakomusikaeskola.eu/My Drive/ACTUAL/PhD/Projects/Depredation/MentalModels_Analysis/Galveston/Kumu/Exported_Kumu_Galveston_30April.xlsx"  # <-- EDIT THIS PATH
+
+# Galveston "sub-regions" are the three fishery groups (Tags column values)
+GV_SUBREGIONS <- c("Recreational", "Charter", "Commercial")
+
+gv_elements    <- read_excel(GV_FILE, sheet = "Elements")
+gv_connections <- read_excel(GV_FILE, sheet = "Connections") %>%
+  mutate(strength_num = suppressWarnings(as.numeric(Strength))) %>%
+  filter(!is.na(From), !is.na(To), !is.na(strength_num))
+
+cat("\nLoaded — GV:", nrow(gv_elements), "elements |",
+    nrow(gv_connections), "connections\n")
+
+# Strength-scale check: expect integer ±1/±2 (not the ±0.5/±1.0 MM scale)
+gv_strength_vals <- sort(unique(gv_connections$strength_num))
+cat("Galveston unique Strength values:",
+    paste(gv_strength_vals, collapse = ", "), "\n")
+if (any(abs(gv_strength_vals) > 0 & abs(gv_strength_vals) < 1))
+  warning("Galveston Strength contains |value| < 1 (looks like the ±0.5/±1.0 ",
+          "Mental Modeler scale). Multiply by 2 to match the integer ±1/±2 ",
+          "scale used for the other models before trusting weighted metrics.")
+
+# Build one graph per fishery — identical machinery to the AU/GC sub-regions
+cat("\n=== Building Galveston fishery graphs ===\n")
+gv_graphs <- setNames(
+  lapply(GV_SUBREGIONS, build_subregion_graph,
+         all_elements = gv_elements, all_connections = gv_connections),
+  GV_SUBREGIONS)
+
+for (r in GV_SUBREGIONS) {
+  g <- gv_graphs[[r]]
+  if (!is.null(g))
+    cat(sprintf("  GV | %-22s N=%d  E=%d\n", r, vcount(g), ecount(g)))
 }
 
-# Concept-level Jaccard matrix
-concept_jaccard_mat <- function(metrics_list) {
-  regs <- names(metrics_list)
-  n    <- length(regs)
-  mat  <- matrix(NA_real_, n, n, dimnames = list(regs, regs))
-  for (i in seq_len(n)) for (j in seq_len(n)) {
-    mi <- metrics_list[[i]]; mj <- metrics_list[[j]]
-    if (!is.null(mi) && !is.null(mj))
-      mat[i, j] <- jaccard(V(mi$g)$name, V(mj$g)$name)
-  }
-  mat
-}
-
-# Link-level Jaccard matrix (edges as "From→To" strings, ignoring strength)
-link_jaccard_mat <- function(metrics_list) {
-  regs <- names(metrics_list)
-  n    <- length(regs)
-  mat  <- matrix(NA_real_, n, n, dimnames = list(regs, regs))
-  for (i in seq_len(n)) for (j in seq_len(n)) {
-    mi <- metrics_list[[i]]; mj <- metrics_list[[j]]
-    if (!is.null(mi) && !is.null(mj)) {
-      ei <- with(igraph::as_data_frame(mi$g, "edges"), paste(from, to, sep="→"))
-      ej <- with(igraph::as_data_frame(mj$g, "edges"), paste(from, to, sep="→"))
-      mat[i, j] <- jaccard(ei, ej)
-    }
-  }
-  mat
-}
-
-cat("\n\n========== JACCARD — AUSTRALIA ==========\n")
-au_cjac <- concept_jaccard_mat(au_metrics)
-au_ljac <- link_jaccard_mat(au_metrics)
-cat("\nConcept Jaccard (shared variables):\n")
-print(round(au_cjac, 3))
-cat("\nLink Jaccard (shared causal pairs):\n")
-print(round(au_ljac, 3))
-
-cat("\n\n========== JACCARD — GULF COAST ==========\n")
-gc_cjac <- concept_jaccard_mat(gc_metrics)
-gc_ljac <- link_jaccard_mat(gc_metrics)
-cat("\nConcept Jaccard (shared variables):\n")
-print(round(gc_cjac, 3))
-cat("\nLink Jaccard (shared causal pairs):\n")
-print(round(gc_ljac, 3))
-
-# Also print the common concepts for each pair (concept overlap details)
-cat("\n--- Common concept sets (AU pairwise) ---\n")
-for (pair in combn(AU_SUBREGIONS, 2, simplify = FALSE)) {
-  r1 <- pair[1]; r2 <- pair[2]
-  m1 <- au_metrics[[r1]]; m2 <- au_metrics[[r2]]
-  if (is.null(m1) || is.null(m2)) next
-  common <- intersect(V(m1$g)$name, V(m2$g)$name)
-  cat(sprintf("  %s ∩ %s (%d): %s\n", r1, r2, length(common),
-              if (length(common) <= 12) paste(common, collapse=", ")
-              else paste(c(head(common, 10), "..."), collapse=", ")))
-}
-
-cat("\n--- Common concept sets (GC pairwise) ---\n")
-for (pair in combn(GC_SUBREGIONS, 2, simplify = FALSE)) {
-  r1 <- pair[1]; r2 <- pair[2]
-  m1 <- gc_metrics[[r1]]; m2 <- gc_metrics[[r2]]
-  if (is.null(m1) || is.null(m2)) next
-  common <- intersect(V(m1$g)$name, V(m2$g)$name)
-  cat(sprintf("  %s ∩ %s (%d): %s\n", r1, r2, length(common),
-              if (length(common) <= 12) paste(common, collapse=", ")
-              else paste(c(head(common, 10), "..."), collapse=", ")))
-}
-
+cat("\n\n========== GALVESTON — FISHERY METRICS ==========\n")
+gv_metrics <- setNames(
+  lapply(GV_SUBREGIONS, function(r)
+    compute_all_metrics(gv_graphs[[r]], r)),
+  GV_SUBREGIONS)
 
 # ============================================================
 # SECTION 7 — CONFLICT / DISAGREEMENT ANALYSIS
@@ -803,26 +771,17 @@ make_metrics_table <- function(metrics_list, label) {
 
 au_tbl <- make_metrics_table(au_metrics, "AUSTRALIA SUB-REGIONS")
 gc_tbl <- make_metrics_table(gc_metrics, "GULF COAST SUB-REGIONS")
+gv_tbl <- make_metrics_table(gv_metrics, "GALVESTON FISHERIES")
 
-# 10.2 Pairwise EDR / MDR distance matrices
-make_dist_matrix <- function(edr_list, mdr_list, regions, label) {
-  cat(sprintf("\n\n========== DISTANCE MATRICES — %s ==========\n", label))
-  n <- length(regions)
-  edr_mat <- mdr_mat <- matrix(0, n, n, dimnames = list(regions, regions))
-  for (k in seq_along(edr_list)) {
-    r1 <- edr_list[[k]]$r1; r2 <- edr_list[[k]]$r2
-    edr_val <- edr_list[[k]]$result$EDR
-    mdr_val <- if (!is.null(mdr_list[[k]])) mdr_list[[k]]$MDR else NA_real_
-    edr_mat[r1,r2] <- edr_mat[r2,r1] <- edr_val
-    mdr_mat[r1,r2] <- mdr_mat[r2,r1] <- mdr_val
-  }
-  cat("  EDR matrix:\n"); print(round(edr_mat, 4))
-  cat("  MDR matrix:\n"); print(round(mdr_mat, 4))
-  list(EDR = edr_mat, MDR = mdr_mat)
-}
-
-au_dist <- make_dist_matrix(au_edr_list, au_mdr_list, AU_SUBREGIONS, "AUSTRALIA")
-gc_dist <- make_dist_matrix(gc_edr_list, gc_mdr_list, GC_SUBREGIONS, "GULF COAST")
+# Combined comparison table across all workshops (Australia, Gulf Coast, Galveston)
+comparison_table_g2 <- bind_rows(
+  au_tbl %>% mutate(Workshop = "Australia"),
+  gc_tbl %>% mutate(Workshop = "Gulf Coast"),
+  gv_tbl %>% mutate(Workshop = "Galveston")
+) %>%
+  relocate(Workshop)
+cat("\n\n========== COMBINED METRICS TABLE — ALL WORKSHOPS ==========\n")
+print(comparison_table_g2, row.names = FALSE)
 
 
 # ============================================================
