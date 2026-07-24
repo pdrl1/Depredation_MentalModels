@@ -519,9 +519,61 @@ metrics_al <- compute_all_metrics(g_al, "Alabama (Gulf Coast USA)")
 
 
 
+# ============================================================
+# SECTION 6 — COMPARATIVE SUMMARY TABLE
+# ============================================================
+
+comparison_table <- data.frame(
+  Metric                = c(
+    "Concepts (N)",
+    "Connections (E)",
+    "Link Density D",
+    "Transmitters",
+    "Receivers",
+    "Ordinary",
+    "R/T Ratio",
+    "Positive links (%)",
+    "Negative links (%)",
+    "Average Path Length",
+    "Diameter",
+    "Avg Clustering Coeff.",
+    "Circuit Rank",
+    "Simple Cycles (≤7)",
+    "Reinforcing loops",
+    "Balancing loops"
+  ),
+  Australia  = c(
+    metrics_au$N, metrics_au$E, round(metrics_au$density, 5),
+    metrics_au$n_tx, metrics_au$n_rx, metrics_au$n_ord,
+    round(metrics_au$RT_ratio, 3),
+    round(metrics_au$n_pos / metrics_au$E * 100, 1),
+    round(metrics_au$n_neg / metrics_au$E * 100, 1),
+    round(metrics_au$apl, 3), metrics_au$diam,
+    round(metrics_au$clust_avg, 4),
+    metrics_au$circ_rank, metrics_au$n_cycles,
+    metrics_au$n_reinforcing, metrics_au$n_balancing
+  ),
+  Alabama_GulfCoast = c(
+    metrics_al$N, metrics_al$E, round(metrics_al$density, 5),
+    metrics_al$n_tx, metrics_al$n_rx, metrics_al$n_ord,
+    round(metrics_al$RT_ratio, 3),
+    round(metrics_al$n_pos / metrics_al$E * 100, 1),
+    round(metrics_al$n_neg / metrics_al$E * 100, 1),
+    round(metrics_al$apl, 3), metrics_al$diam,
+    round(metrics_al$clust_avg, 4),
+    metrics_al$circ_rank, metrics_al$n_cycles,
+    metrics_al$n_reinforcing, metrics_al$n_balancing
+  )
+)
+
+cat("\n\n", strrep("=", 65), "\n")
+cat("  COMPARATIVE SUMMARY TABLE\n")
+cat(strrep("=", 65), "\n")
+print(comparison_table, row.names = FALSE)
+
 
 # ============================================================
-# SECTION 10b — GALVESTON (THIRD STANDALONE MODEL)
+# SECTION 7 — GALVESTON (THIRD STANDALONE MODEL)
 # ============================================================
 # Galveston is added ONLY for the metric-calculation process, as a third
 # standalone model computed with exactly the same pipeline as Australia and
@@ -561,10 +613,10 @@ metrics_gv <- compute_all_metrics(g_gv, "Galveston")
 
 
 # ============================================================
-# SECTION 11 — VISUALISATIONS
+# SECTION 8 — VISUALISATIONS
 # ============================================================
 
-# ---- 11.1 Indegree vs Outdegree scatter (driver-outcome map) ----
+# ---- 8.1 Indegree vs Outdegree scatter (driver-outcome map) ----
 # Concepts above the diagonal (indegree = outdegree line) are net drivers;
 # those below are net receivers. Labels shown for the top-20 by degree.
 
@@ -581,10 +633,10 @@ plot_io_scatter <- function(metrics_obj, top_n = 20) {
       aes(label = str_wrap(name, 25)),
       size = 2.8, max.overlaps = 15, show.legend = FALSE
     ) +
-    scale_colour_manual(values = c("Transmitter" = "#E69F00",
+    scale_colour_manual(values = c("Transmitter" = "#D55E00",
                                    "Receiver"    = "#56B4E9",
                                    "Ordinary"    = "#009E73",
-                                   "Isolated"    = "grey60")) +
+                                   "Isolated"    = "grey80")) + #color blind friendly palette
     labs(
       title   = paste0("Driver–Outcome Map: ", metrics_obj$model_name),
       x       = "Indegree (influence RECEIVED, Σ|w|)",
@@ -606,7 +658,7 @@ ggsave("IO_scatter_Australia.pdf",   p_au, width = 10, height = 8)
 ggsave("IO_scatter_Alabama.pdf",     p_al, width = 10, height = 8)
 
 
-# ---- 11.2 Comparative bar chart: key structural metrics ----
+# ---- 8.2 Comparative bar chart: key structural metrics ----
 
 long_comp <- comparison_table %>%
   filter(Metric %in% c("Concepts (N)", "Connections (E)",
@@ -628,7 +680,7 @@ p_bar <- ggplot(long_comp, aes(x = Metric, y = Value, fill = Model)) +
 ggsave("Structural_comparison_barplot.pdf", p_bar, width = 10, height = 6)
 
 
-# ---- 11.3 Betweenness centrality bar charts (top 15) ----
+# ---- 8.3 Betweenness centrality bar charts (top 15) ----
 
 plot_betweenness <- function(metrics_obj, top_n = 15) {
   metrics_obj$node_df %>%
@@ -639,9 +691,10 @@ plot_betweenness <- function(metrics_obj, top_n = 15) {
     ggplot(aes(x = name, y = betweenness, fill = concept_type)) +
     geom_col() +
     coord_flip() +
-    scale_fill_manual(values = c("Transmitter" = "#E69F00",
-                                 "Receiver"    = "#56B4E9",
-                                 "Ordinary"    = "#009E73")) +
+    scale_colour_manual(values = c("Transmitter" = "#D55E00",
+                                   "Receiver"    = "#56B4E9",
+                                   "Ordinary"    = "#009E73",
+                                   "Isolated"    = "grey80")) + #color blind friendly palette
     labs(title = paste0("Betweenness centrality (top ", top_n, "): ",
                         metrics_obj$model_name),
          x = NULL, y = "Normalised betweenness", fill = "Type") +
@@ -657,7 +710,7 @@ ggsave("Betweenness_Alabama.pdf",
        plot_betweenness(metrics_al), width = 10, height = 7)
 
 
-# ---- 11.4 Prominence bar chart (top 15) ----
+# ---- 8.4 Prominence bar chart (top 15) ----
 
 plot_prominence <- function(metrics_obj, top_n = 15) {
   metrics_obj$node_df %>%
@@ -668,9 +721,10 @@ plot_prominence <- function(metrics_obj, top_n = 15) {
     ggplot(aes(x = name, y = prominence, fill = concept_type)) +
     geom_col() +
     coord_flip() +
-    scale_fill_manual(values = c("Transmitter" = "#E69F00",
-                                 "Receiver"    = "#56B4E9",
-                                 "Ordinary"    = "#009E73")) +
+    scale_colour_manual(values = c("Transmitter" = "#D55E00",
+                                   "Receiver"    = "#56B4E9",
+                                   "Ordinary"    = "#009E73",
+                                   "Isolated"    = "grey80")) + #color blind friendly palette
     labs(title = paste0("Prominence: ", metrics_obj$model_name),
          x = NULL, y = "Prominence score", fill = "Type") +
     theme_bw(base_size = 11)
@@ -687,9 +741,8 @@ ggsave("Prominence_Alabama.pdf",
 cat("\n\nAll plots saved. Analysis complete.\n")
 
 
+# ---- 8.5 BUILD COMBINED NODE TABLE FROM GOAL 1 METRICS ----
 
-# BUILD COMBINED NODE TABLE FROM GOAL 1 METRICS
-# ================================================================
 full_df_g1 <- bind_rows(
   metrics_au$node_df %>% mutate(Region = metrics_au$model_name),
   metrics_al$node_df %>% mutate(Region = metrics_al$model_name)
@@ -724,59 +777,195 @@ theme_fcm <- function(base_size = 10) {
     )
 }
 
-#  ------- PLOT G1-6 — INDEGREE vs OUTDEGREE -------
+
+
+#  ------- 8.6. PLOT G1-6 — INDEGREE vs OUTDEGREE -------
+
 cat("Plot G1-6: Indegree vs Outdegree...\n")
 
-label_df_g1 <- full_df_g1 %>%
+# ---- Region order: USGC left, Australia right ----
+full_df_g1 <- full_df_g1 %>%
+  mutate(Region = factor(
+    recode(Region,
+           "Alabama (Gulf Coast USA)" = "US Gulf Coast (USGC)",
+           "Australia"                = "Australia"),
+    levels = c("US Gulf Coast (USGC)", "Australia")
+  ))
+
+# ---- Threshold diagnostic: Degree with p-quantile cutoff per region ----
+
+p_keep <- 0.80   # keep top 20% (>= 80th percentile). Keep nodes above the 80th percentile.
+
+thr_g1 <- full_df_g1 %>%
   group_by(Region) %>%
-  slice_max(Degree, n = 12, with_ties = FALSE) %>%
+  summarise(thresh = quantile(Degree, p_keep, na.rm = TRUE), .groups = "drop")
+
+diag_df <- full_df_g1 %>%
+  left_join(thr_g1, by = "Region") %>%
+  group_by(Region) %>%
+  mutate(
+    rank_deg = rank(-Degree, ties.method = "first"),
+    keep     = Degree >= thresh
+  ) %>%
   ungroup()
 
-p_g1_6 <- ggplot(full_df_g1,
-                 aes(x = Indegree, y = Outdegree,
-                     colour = Type, size = Degree)) +
-  geom_abline(slope = 1, intercept = 0,
-              linetype = "dashed", colour = "grey60", linewidth = 0.5) +
-  geom_point(alpha = 0.65) +
-  geom_label_repel(
-    data          = label_df_g1,
-    aes(label     = str_wrap(Concept, 20)),
-    size          = 2.3,
-    label.padding = unit(0.12, "lines"),
-    max.overlaps  = 12,
-    show.legend   = FALSE,
-    colour        = "grey20",
-    fill          = alpha("white", 0.8)
-  ) +
-  scale_colour_manual(values = c("Transmitter" = "#E69F00",
-                                 "Receiver"    = "#56B4E9",
-                                 "Ordinary"    = "#009E73"), drop = FALSE) +
-  scale_size_continuous(range = c(1.5, 6), guide = "none") +
-  facet_wrap(~ Region, nrow = 1, scales = "free") +
+p_thresh <- ggplot(diag_df,
+                   aes(x = reorder(Concept, Degree), y = Degree, colour = keep)) +
+  geom_segment(aes(xend = Concept, y = 0, yend = Degree),
+               colour = "grey80", linewidth = 0.3) +
+  geom_point(size = 1.8) +
+  geom_hline(data = thr_g1, aes(yintercept = thresh),
+             linetype = "dashed", colour = "red", linewidth = 0.5) +
+  geom_text(data = thr_g1,
+            aes(x = 1, y = thresh,
+                label = paste0("p", round(p_keep*100), " = ", round(thresh, 1))),
+            inherit.aes = FALSE, hjust = 0, vjust = -0.5,
+            size = 3, colour = "red") +
+  coord_flip() +
+  scale_colour_manual(values = c("TRUE" = "#009E73", "FALSE" = "grey65"),
+                      labels = c("TRUE" = "Labeled (kept)", "FALSE" = "Not labeled"),
+                      name   = NULL) +
+  facet_wrap(~ Region, nrow = 1, scales = "free_y") +
   labs(
-    title    = "Indegree vs Outdegree — Full Models (Global Comparison)",
-    subtitle = "Above diagonal = more outgoing (driver)  |  Below = more incoming (receiver)  |  Size = Degree",
-    x        = "Indegree (sum of incoming |weights|)",
-    y        = "Outdegree (sum of outgoing |weights|)",
-    colour   = "Concept type"
+    title = "Degree distribution and labeling threshold",
+    x     = NULL,
+    y     = "Degree (total connectivity)"
   ) +
   theme_fcm()
 
-png(filename = "G1_P6_indegree_vs_outdegree.png",
-    width = 17, height = 8, units = "in", res = 600)
+#Values of Depredation
+full_df_g1 %>%
+  filter(Concept == "Depredation") %>%
+  select(Region, Indegree, Outdegree, Degree) %>%
+  arrange(Region) %>%
+  print()
+
+
+# ---- Panel tags (a)/(b) ----
+region_labs <- c(
+  "US Gulf Coast (USGC)" = "US Gulf Coast (USGC)",
+  "Australia"            = "Australia"
+)
+
+# ---- Drop Depredation so axes rescale to the rest of the concepts ----
+plot_df_g1 <- full_df_g1 %>% filter(Concept != "Depredation")
+
+
+# ---- Labels: only concepts at/above the p80 Degree threshold per region ----
+
+label_df_g1 <- plot_df_g1 %>%
+  group_by(Region) %>%
+  filter(Degree >= quantile(Degree, p_keep, na.rm = TRUE)) %>%
+  #concepts on above the 80 percentile by Degree (indegree+outdegree) in each panel gets a label box
+  ungroup()
+
+# recompute 1:1 annotation position on the reduced data
+gm <- with(plot_df_g1,
+           min(max(Indegree, na.rm = TRUE), max(Outdegree, na.rm = TRUE)))
+
+#Plot
+p_g1_6 <- ggplot(plot_df_g1,
+                 aes(x = Indegree, y = Outdegree,
+                     colour = Type, size = Degree)) +
+  
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed", colour = "grey60", linewidth = 0.5) +
+  
+  geom_point(alpha = 0.6, stroke = 0.2) +
+  
+  annotate("text", x = 0.80 * gm, y = 0.80 * gm, label = "1:1 line",
+           angle = 45, vjust = -1, size = 3, colour = "grey45") +
+  
+  geom_label_repel(
+    data          = label_df_g1,
+    aes(label     = str_wrap(Concept, 20)),
+    size          = 2.6,
+    label.padding = unit(0.12, "lines"),
+    box.padding   = unit(0.4, "lines"),
+    point.padding = unit(0.2, "lines"),
+    min.segment.length = 0,
+    segment.colour = "grey55",
+    segment.size  = 0.3,
+    max.overlaps  = Inf,          # don't silently drop labels
+    seed          = 42,           # reproducible label positions
+    show.legend   = FALSE,
+    colour        = "grey15",
+    fill          = alpha("white", 0.85)
+  ) +
+  
+  scale_colour_manual(values = c("Transmitter" = "#D55E00",
+                                 "Receiver"    = "#56B4E9",
+                                 "Ordinary"    = "#009E73", #color blind friendly palette
+                                 "Isolated"    = "grey80"), drop = FALSE) +
+  
+  guides(colour = guide_legend(override.aes = list(size = 4, alpha = 1))) +
+  
+  scale_size_continuous(range = c(1.5, 6), 
+                        guide = "none") + #change here to show legend of dot size. Change to: guide = guide_legend(title = "Degree")
+  
+  facet_wrap(~ Region, nrow = 1, scales = "fixed", #scales fixed (shared axes) to allow comparison
+             labeller = labeller(Region = region_labs)) + 
+  
+  labs(
+    x        = "Indegree",
+    y        = "Outdegree",
+    colour   = "Concept type"
+  ) +
+  theme_fcm()+
+  theme(
+    plot.title    = element_text(size = 14, face = "bold"),
+    axis.title    = element_text(size = 11),
+    axis.text     = element_text(size = 9),
+    strip.text    = element_text(size = 11, face = "bold"),
+    legend.title  = element_text(size = 10),
+    legend.text   = element_text(size = 9),
+    plot.caption  = element_text(size = 8, hjust = 0, colour = "grey30")
+  )
+
+
+# ---- Export: PNG + vector PDF + 600-dpi LZW TIFF ----
+ggsave("G1_P6_indegree_vs_outdegree.png", p_g1_6,
+       width = 15, height = 7, units = "in", dpi = 1200)
+
+ggsave("G1_P6_indegree_vs_outdegree.tiff", p_g1_6,
+       width = 17, height = 8, units = "in", dpi = 1200,
+       compression = "lzw")
+
+pdf(filename = "G1_P6_indegree_vs_outdegree.png",
+    width = 17, height = 8, units = "in", res = 1200)
 p_g1_6
 dev.off()
 
-# ----- PLOT G1-6b — CLOSENESS vs BETWEENNESS -------
+
+
+# ----- 8.6B - PLOT G1-6b — CLOSENESS vs BETWEENNESS -------
 
 cat("Plot G1-6b: Closeness vs Betweenness...\n")
 
-label_df_g1_cb <- full_df_g1 %>%
+# ---- Region order: USGC left, Australia right ----
+full_df_g1 <- full_df_g1 %>%
+  mutate(Region = factor(
+    recode(Region,
+           "Alabama (Gulf Coast USA)" = "US Gulf Coast (USGC)",
+           "Australia"                = "Australia"),
+    levels = c("US Gulf Coast (USGC)", "Australia")
+  ))
+
+p_keep_n <- 10
+
+plot_df_cb <- full_df_g1 %>%
+  filter(!is.na(Closeness), !is.na(Betweenness)) %>%
+  filter(Concept != "Depredation") %>%          # drop Depredation
   group_by(Region) %>%
-  slice_max(Degree, n = 12, with_ties = FALSE) %>%
+  mutate(
+    keep = rank(-Closeness, ties.method = "min") <= p_keep_n |
+      rank(-Betweenness, ties.method = "min") <= p_keep_n,
+    lab  = ifelse(keep, str_wrap(Concept, 16), "")
+  ) %>%
   ungroup()
 
-quad_lines_g1 <- full_df_g1 %>%
+# recompute median lines WITHOUT Depredation so quadrants match the plotted points
+quad_lines_g1 <- plot_df_cb %>%
   group_by(Region) %>%
   summarise(
     med_closeness   = median(Closeness,   na.rm = TRUE),
@@ -784,44 +973,77 @@ quad_lines_g1 <- full_df_g1 %>%
     .groups = "drop"
   )
 
-p_g1_6b <- ggplot(full_df_g1,
-                  aes(x = Closeness, y = Betweenness,
-                      colour = Type, size = Degree)) +
-  geom_vline(data = quad_lines_g1,
-             aes(xintercept = med_closeness),
+#Depredation values
+full_df_g1 %>%
+  filter(Concept == "Depredation") %>%
+  select(Region, Closeness, Betweenness) %>%
+  arrange(Region) %>%
+  print()
+
+
+p_g1_6b <- ggplot(plot_df_cb,
+                  aes(x = Closeness, y = Betweenness)) +
+  geom_vline(data = quad_lines_g1, aes(xintercept = med_closeness),
              linetype = "dashed", colour = "grey70", linewidth = 0.4) +
-  geom_hline(data = quad_lines_g1,
-             aes(yintercept = med_betweenness),
+  geom_hline(data = quad_lines_g1, aes(yintercept = med_betweenness),
              linetype = "dashed", colour = "grey70", linewidth = 0.4) +
-  geom_point(alpha = 0.65) +
+  geom_point(aes(colour = Type, size = Degree), alpha = 0.6, stroke = 0.2) +
+  
   geom_label_repel(
-    data          = label_df_g1_cb,
-    aes(label     = str_wrap(Concept, 20)),
-    size          = 2.3,
+    data          = plot_df_cb,
+    aes(label     = lab),
+    size          = 2.6,
     label.padding = unit(0.12, "lines"),
-    max.overlaps  = 12,
-    show.legend   = FALSE,
-    colour        = "grey20",
-    fill          = alpha("white", 0.8)
+    box.padding   = unit(0.5, "lines"),
+    point.padding = unit(0.4, "lines"),
+    min.segment.length = 0,
+    segment.colour = "grey55", segment.size = 0.3,
+    max.overlaps  = Inf, seed = 42,
+    show.legend   = FALSE, colour = "grey15",
+    fill          = alpha("white", 0.85)
   ) +
-  scale_colour_manual(values = c("Transmitter" = "#E69F00",
+  
+  scale_colour_manual(values = c("Transmitter" = "#D55E00",
                                  "Receiver"    = "#56B4E9",
-                                 "Ordinary"    = "#009E73"), drop = FALSE) +
+                                 "Ordinary"    = "#009E73",
+                                 "Isolated"    = "grey80"), drop = FALSE) +
+  guides(colour = guide_legend(override.aes = list(size = 4, alpha = 1))) +
+  
   scale_size_continuous(range = c(1.5, 6), guide = "none") +
-  facet_wrap(~ Region, nrow = 1, scales = "free") +
+  scale_x_sqrt() +          # spread the low-closeness cluster
+  scale_y_sqrt() +          # spread the near-zero betweenness cluster
+  facet_wrap(~ Region, nrow = 1, scales = "fixed") +
   labs(
-    title    = "Closeness vs Betweenness Centrality — Full Models (Global Comparison)",
-    subtitle = "Top-right = fast broadcaster AND bridge  |  Top-left = bottleneck only  |  Bottom-right = broadcaster only\nDashed lines = per-region medians  |  Size = Degree",
-    x        = "Closeness (normalised, outgoing; higher = faster broadcaster)",
-    y        = "Betweenness (normalised; higher = more of a bridge/bottleneck)",
-    colour   = "Concept type"
-  ) +
-  theme_fcm()
+    x      = "Closeness (normalized, outgoing; higher = faster broadcaster)",
+    y      = "Betweenness (normalized; higher = more of a bridge/bottleneck)",
+    colour = "Concept type"
+    ) +
+  theme_fcm() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.title = element_text(size = 11), axis.text = element_text(size = 9),
+    strip.text = element_text(size = 11, face = "bold"),
+    legend.title = element_text(size = 10), legend.text = element_text(size = 9),
+    plot.caption = element_text(size = 8, hjust = 0, colour = "grey30")
+  )
 
-png(filename = "G1_P6b_closeness_vs_betweenness.png",
-    width = 17, height = 8, units = "in", res = 600)
-p_g1_6b
-dev.off()
+
+
+# ---- Export: PNG + vector PDF + 600-dpi LZW TIFF ----
+ggsave("G1_P6b_closeness_vs_betweenness.png", p_g1_6b,
+       width = 15, height = 7, units = "in", dpi = 1200)
+
+ggsave("G1_P6b_closeness_vs_betweenness.pdf", p_g1_6b,
+       width = 17, height = 8, units = "in", device = cairo_pdf)
+
+ggsave("G1_P6b_closeness_vs_betweenness.tiff", p_g1_6b,
+       width = 17, height = 8, units = "in", dpi = 600,
+       compression = "lzw")
+
+
+
+
+
 
 
 
@@ -830,8 +1052,13 @@ dev.off()
 
 
 # ============================================================
-# SECTION 6 — SCHAFFERNICHT & GROESSER (2011): ELEMENT DISTANCE RATIO
+# ============== SOME EXTRA ANALYSIS =========================
 # ============================================================
+
+
+# SCHAFFERNICHT & GROESSER (2011): ELEMENT DISTANCE RATIO
+# ------------------------------------------------------------
+
 # Paper §3.3 — The EDR is computed using signed adjacency matrices.
 #
 # PARAMETERS (for system dynamics / FCMs):
@@ -1050,9 +1277,10 @@ compute_EDR <- function(metrics_A, metrics_B,
 }
 
 
-# ============================================================
-# SECTION 7 — SCHAFFERNICHT & GROESSER (2011): LOOP DISTANCE RATIO
-# ============================================================
+
+# SCHAFFERNICHT & GROESSER (2011): LOOP DISTANCE RATIO
+# ------------------------------------------------------------
+
 # Paper §3.4 — LDR compares individual feedback loops between models.
 #
 # Each loop is compared along three dimensions (Eq. 3):
@@ -1281,9 +1509,10 @@ compute_LDR_MDR <- function(metrics_A, metrics_B, edr_result,
 }
 
 
-# ============================================================
-# SECTION 8 — OPTIONAL CONCEPT MAPPING
-# ============================================================
+
+# OPTIONAL CONCEPT MAPPING
+# ------------------------------------------------------------
+
 # The Australia and Alabama models were elicited independently and
 # may use different terminology for equivalent concepts.
 # Add any semantic equivalences here as a named character vector:
@@ -1313,9 +1542,9 @@ concept_map_AU_to_AL <- c(
 )
 
 
-# ============================================================
-# SECTION 9 — RUN EDR, LDR, MDR
-# ============================================================
+
+# RUN EDR, LDR, MDR
+# ------------------------------------------------------------
 
 edr_result  <- compute_EDR(metrics_au, metrics_al,
                            concept_map = concept_map_AU_to_AL)
@@ -1324,58 +1553,6 @@ ldr_mdr_result <- compute_LDR_MDR(metrics_au, metrics_al,
                                   edr_result = edr_result,
                                   w_g = 1/3, w_i = 1/3, w_j = 1/3)
 
-
-# ============================================================
-# SECTION 10 — COMPARATIVE SUMMARY TABLE
-# ============================================================
-
-comparison_table <- data.frame(
-  Metric                = c(
-    "Concepts (N)",
-    "Connections (E)",
-    "Link Density D",
-    "Transmitters",
-    "Receivers",
-    "Ordinary",
-    "R/T Ratio",
-    "Positive links (%)",
-    "Negative links (%)",
-    "Average Path Length",
-    "Diameter",
-    "Avg Clustering Coeff.",
-    "Circuit Rank",
-    "Simple Cycles (≤7)",
-    "Reinforcing loops",
-    "Balancing loops"
-  ),
-  Australia  = c(
-    metrics_au$N, metrics_au$E, round(metrics_au$density, 5),
-    metrics_au$n_tx, metrics_au$n_rx, metrics_au$n_ord,
-    round(metrics_au$RT_ratio, 3),
-    round(metrics_au$n_pos / metrics_au$E * 100, 1),
-    round(metrics_au$n_neg / metrics_au$E * 100, 1),
-    round(metrics_au$apl, 3), metrics_au$diam,
-    round(metrics_au$clust_avg, 4),
-    metrics_au$circ_rank, metrics_au$n_cycles,
-    metrics_au$n_reinforcing, metrics_au$n_balancing
-  ),
-  Alabama_GulfCoast = c(
-    metrics_al$N, metrics_al$E, round(metrics_al$density, 5),
-    metrics_al$n_tx, metrics_al$n_rx, metrics_al$n_ord,
-    round(metrics_al$RT_ratio, 3),
-    round(metrics_al$n_pos / metrics_al$E * 100, 1),
-    round(metrics_al$n_neg / metrics_al$E * 100, 1),
-    round(metrics_al$apl, 3), metrics_al$diam,
-    round(metrics_al$clust_avg, 4),
-    metrics_al$circ_rank, metrics_al$n_cycles,
-    metrics_al$n_reinforcing, metrics_al$n_balancing
-  )
-)
-
-cat("\n\n", strrep("=", 65), "\n")
-cat("  COMPARATIVE SUMMARY TABLE\n")
-cat(strrep("=", 65), "\n")
-print(comparison_table, row.names = FALSE)
 
 cat("\n  Schaffernicht & Groesser (2011) distance ratios:\n")
 cat("  EDR  =", round(edr_result$EDR, 4),
