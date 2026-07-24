@@ -310,7 +310,7 @@ compute_all_metrics <- function(g, model_name) {
   # R/T = 0 → pure driver framing; high R/T → outcome-focused framing.
   
   node_df <- compute_degrees(g) %>% classify_concepts()
-  
+
   n_tx  <- sum(node_df$concept_type == "Transmitter")
   n_rx  <- sum(node_df$concept_type == "Receiver")
   n_ord <- sum(node_df$concept_type == "Ordinary")
@@ -515,7 +515,7 @@ compute_all_metrics <- function(g, model_name) {
 
 # ---- RUN ----
 metrics_au <- compute_all_metrics(g_au, "Australia")
-metrics_al <- compute_all_metrics(g_al, "Alabama (Gulf Coast USA)")
+metrics_al <- compute_all_metrics(g_al, "US Gulf Coast")
 
 
 
