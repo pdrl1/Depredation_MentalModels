@@ -249,22 +249,28 @@ classify_loop_polarity <- function(g, cycle) {
 }
 
 # 4.5 Prominence as in Hoffman et al., 2014
+#     Eigenvector centrality computed on the UNDIRECTED graph, because
+#     directed eigenvector centrality is 0 for acyclic (DAG) sub-region
+#     networks. Undirected EC measures overall embeddedness among
+#     well-connected concepts and is defined for all graphs.
 compute_prominence <- function(g, node_df) {
-  # Eigenvector centrality with tie weights (Hoffman et al., 2014)
-  ec <- eigen_centrality(g, directed = TRUE, weights = abs(E(g)$weight))$vector
+  er <- eigen_centrality(g, directed = FALSE,                # <-- the fix
+                         weights = abs(E(g)$weight), scale = TRUE)
   
-  # Min-max normalize eigenvector centrality
-  mx <- max(ec, na.rm = TRUE)
-  mn <- min(ec, na.rm = TRUE)
+  ec_df <- tibble(name = names(er$vector),
+                  eigen_centrality = as.numeric(er$vector))
   
-  node_df$eigen_centrality <- ec[node_df$name]
-  node_df <- node_df %>%
+  mn <- min(ec_df$eigen_centrality, na.rm = TRUE)
+  mx <- max(ec_df$eigen_centrality, na.rm = TRUE)
+  
+  node_df %>%
+    select(-any_of(c("eigen_centrality", "norm_eigen", "occurrence", "prominence"))) %>%
+    left_join(ec_df, by = "name") %>%
     mutate(
-      norm_eigen   = ifelse(mx == mn, 1, (eigen_centrality - mn) / (mx - mn)),
-      occurrence   = 1,
-      prominence   = (occurrence + norm_eigen) / 2
+      norm_eigen = if (mx == mn) 0 else (eigen_centrality - mn) / (mx - mn),
+      occurrence = 1,
+      prominence = (occurrence + norm_eigen) / 2
     )
-  return(node_df)
 }
 
 # ============================================================
@@ -383,10 +389,10 @@ gc_metrics <- setNames(
     compute_all_metrics(gc_graphs[[r]], r)),
   GC_SUBREGIONS)
 
-
+sapply(au_metrics, function(m) if (!is.null(m)) dplyr::n_distinct(m$node_df$prominence) else NA)
 
 # ============================================================
-# SECTION 6b — GALVESTON (NEW WORKSHOP, SPLIT BY FISHERY)
+# SECTION 6 — GALVESTON (NEW WORKSHOP, SPLIT BY FISHERY)
 # ============================================================
 # Galveston is added to Goal 2 as a third workshop, divided into its three
 # fishery groups exactly as Australia is divided into sub-regions:
@@ -510,8 +516,530 @@ if (nrow(gc_conflicts) > 0) {
 
 
 # ============================================================
-# SECTION 8 — EDR FOR ALL PAIRWISE SUB-REGION COMPARISONS
+# SECTION 8 — SHARED / UNIQUE CONCEPTS ACROSS SUB-REGIONS
 # ============================================================
+
+# For each workshop: concept -> how many sub-regions contain it, and which ones.
+# Membership = the concept is a node in that sub-region's model (node_df$name).
+concept_counts <- function(metrics_list) {
+  bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]; if (is.null(m)) return(NULL)
+    tibble(name = m$node_df$name, unit = r)
+  })) %>%
+    distinct() %>%
+    group_by(name) %>%
+    summarise(n_units = n(),
+              units   = paste(sort(unit), collapse = " | "),
+              .groups = "drop") %>%
+    arrange(desc(n_units), name)
+}
+
+au_counts <- concept_counts(au_metrics)
+gc_counts <- concept_counts(gc_metrics)
+
+n_au <- sum(!vapply(au_metrics, is.null, logical(1)))   # 4
+n_gc <- sum(!vapply(gc_metrics, is.null, logical(1)))   # 5
+
+## ---- 1) SHARED concepts ----
+au_shared_all <- au_counts %>% filter(n_units == n_au)   # in ALL 4 AU regions
+au_shared_3   <- au_counts %>% filter(n_units == 3)      # in exactly 3 of 4
+gc_shared_all <- gc_counts %>% filter(n_units == n_gc)   # in ALL 5 GC states
+gc_shared_3p  <- gc_counts %>% filter(n_units >= 3)      # in 3 OR MORE states
+
+## ---- 3) UNIQUE concepts (only 1 sub-region) ----
+au_unique <- au_counts %>% filter(n_units == 1)
+gc_unique <- gc_counts %>% filter(n_units == 1)
+
+# ---- printouts ----
+cat("\n================ AUSTRALIA ================\n")
+cat(sprintf("Shared by ALL %d regions (%d):\n  %s\n\n",
+            n_au, nrow(au_shared_all), paste(au_shared_all$name, collapse = ", ")))
+cat(sprintf("Shared by exactly 3 of %d (%d):\n  %s\n\n",
+            n_au, nrow(au_shared_3), paste(au_shared_3$name, collapse = ", ")))
+cat(sprintf("Unique to a single region (%d):\n", nrow(au_unique)))
+print(as.data.frame(au_unique %>% select(name, units)), row.names = FALSE)
+
+cat("\n================ GULF COAST ================\n")
+cat(sprintf("Shared by ALL %d states (%d):\n  %s\n\n",
+            n_gc, nrow(gc_shared_all), paste(gc_shared_all$name, collapse = ", ")))
+cat(sprintf("Shared by 3+ of %d states (%d):\n  %s\n\n",
+            n_gc, nrow(gc_shared_3p), paste(gc_shared_3p$name, collapse = ", ")))
+cat(sprintf("Unique to a single state (%d):\n", nrow(gc_unique)))
+print(as.data.frame(gc_unique %>% select(name, units)), row.names = FALSE)
+
+
+# ============================================================
+# SECTION 9 — SUMMARY TABLES
+# ============================================================
+
+# 10.1 Structural metrics table
+make_metrics_table <- function(metrics_list, label) {
+  cat(sprintf("\n\n========== METRICS TABLE — %s ==========\n", label))
+  tbl <- bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]
+    if (is.null(m)) return(NULL)
+    data.frame(
+      SubRegion    = r,
+      N            = m$N,
+      E            = m$E,
+      Density      = round(m$density,   4),
+      Transmitters = m$n_tx,
+      Receivers    = m$n_rx,
+      Ordinary     = m$n_ord,
+      RT_Ratio     = round(ifelse(is.na(m$RT_ratio), 0, m$RT_ratio), 3),
+      Pos_pct      = round(100 * m$n_pos / max(m$E, 1), 1),
+      Neg_pct      = round(100 * m$n_neg / max(m$E, 1), 1),
+      APL          = round(ifelse(is.na(m$apl), 0, m$apl), 3),
+      Diameter     = ifelse(is.na(m$diam), 0, m$diam),
+      Clust_avg    = round(m$clust_avg, 3),
+      Circ_Rank    = m$circ_rank,
+      Cycles_le7   = m$n_cycles,
+      R_loops      = m$n_reinforcing,
+      B_loops      = m$n_balancing
+    )
+  }))
+  print(tbl, row.names = FALSE)
+  invisible(tbl)
+}
+
+au_tbl <- make_metrics_table(au_metrics, "AUSTRALIA SUB-REGIONS")
+gc_tbl <- make_metrics_table(gc_metrics, "GULF COAST SUB-REGIONS")
+gv_tbl <- make_metrics_table(gv_metrics, "GALVESTON FISHERIES")
+
+# Combined comparison table across all workshops (Australia, Gulf Coast, Galveston)
+comparison_table_g2 <- bind_rows(
+  au_tbl %>% mutate(Workshop = "Australia"),
+  gc_tbl %>% mutate(Workshop = "Gulf Coast"),
+  gv_tbl %>% mutate(Workshop = "Galveston")
+) %>%
+  relocate(Workshop)
+cat("\n\n========== COMBINED METRICS TABLE — ALL WORKSHOPS ==========\n")
+print(comparison_table_g2, row.names = FALSE)
+
+
+# ============================================================
+# SECTION 10 — VISUALISATIONS
+# ============================================================
+
+# Fixed display order for groups (top of plot -> bottom, since axis is reversed below)
+GROUP_ORDER <- c(
+  "Central Concept",
+  "Ecological & Biological Factors",
+  "Human Dimensions",
+  "Fisheries Operations & Practices",
+  "Fisheries Research & Management",
+  "Policy & Economics",
+  "Other"
+)
+
+# Colored by concept group (Ecological, Fisheries, Human Dimensions, etc.)
+library(ggnewscale)
+GROUP_COLOURS <- c(
+  "Central Concept"                   = "#FBD73F",
+  "Ecological & Biological Factors"   = "#9AD354",
+  "Human Dimensions"                  = "#F8895E",
+  "Fisheries Operations & Practices"  = "#E382BA",
+  "Fisheries Research & Management"   = "#8695C2",
+  "Policy & Economics"                = "#5EB99B",
+  "Other"                             = "grey60"
+)
+
+# Shared plot theme
+theme_fcm <- function(base_size = 10) {
+  theme_bw(base_size = base_size) %+replace%
+    theme(
+      strip.text = element_text(
+        face = "bold",
+        size = base_size + 1,
+        margin = margin(b = 6)),
+      strip.background = element_rect(colour = NA),
+      axis.text.y      = element_text(size = base_size - 2),
+      axis.text.x      = element_text(size = base_size - 2),
+      panel.grid.minor = element_blank(),
+      legend.position  = "bottom",
+      legend.title     = element_text(size = base_size - 1),
+      plot.title       = element_text(face = "bold", size = base_size + 2, margin = margin(b = 4)),
+      plot.subtitle    = element_text(size = base_size - 1, margin=margin(b=8))
+    )
+}
+
+# PROMINENCE LOLLIPOP (faceted per sub-region)
+
+if (!requireNamespace("tidytext", quietly = TRUE)) install.packages("tidytext")
+library(tidytext); library(tidyr); library(dplyr); library(ggplot2)
+
+.FALLBACK_PAL <- c("#66C2A5","#FC8D62","#8DA0CB","#E78AC3","#A6D854","#FFD92F","#B3B3B3")
+
+plot_prominence_lollipop <- function(metrics_list, groups_df, label,
+                                     top_n = 50, ncol = NULL) {
+  
+  dat <- bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]; if (is.null(m)) return(NULL)
+    m$node_df %>%
+      arrange(desc(prominence), desc(degree)) %>%      # tie-break by degree
+      slice_head(n = top_n) %>%
+      transmute(name, prominence, degree, unit = r)
+  })) %>%
+    left_join(groups_df, by = "name") %>%
+    mutate(Group = replace_na(Group, "Other"))
+  
+  # resolve group levels + colours (known first, extras get fallback)
+  groups_present <- unique(dat$Group)
+  known <- GROUP_ORDER[GROUP_ORDER %in% groups_present]
+  extra <- setdiff(groups_present, GROUP_ORDER)
+  glev  <- c(known, extra)
+  gcol  <- GROUP_COLOURS[glev]
+  na_i  <- which(is.na(gcol))
+  if (length(na_i)) gcol[na_i] <- rep(.FALLBACK_PAL, length.out = length(na_i))
+  names(gcol) <- glev
+  
+  dat <- dat %>%
+    mutate(Group    = factor(Group, levels = glev),
+           unit     = factor(unit, levels = names(metrics_list)),
+           name_ord = reorder_within(name, prominence, unit))
+  
+  ggplot(dat, aes(x = prominence, y = name_ord)) +
+    geom_segment(aes(x = min(prominence) * 0.98, xend = prominence, yend = name_ord),
+                 colour = "grey85", linewidth = 0.4) +
+    geom_point(aes(colour = Group), size = 3) +
+    scale_y_reordered() +
+    scale_colour_manual(values = gcol, drop = FALSE, name = "Category") +
+    facet_wrap(~ unit, scales = "free_y", ncol = ncol) +
+    labs(title = paste("Top", top_n, "concepts by prominence —", label),
+         subtitle = "Ordered by prominence (ties broken by degree); colour = concept category",
+         x = "Prominence", y = NULL) +
+    theme_minimal(base_size = 9) +
+    theme(axis.text.y = element_text(size = 7),
+          strip.text  = element_text(face = "bold", size = 9),
+          panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
+          plot.title = element_text(face = "bold", size = 12),
+          plot.subtitle = element_text(size = 7, colour = "grey30"),
+          legend.position = "bottom")
+}
+
+lolli_au <- plot_prominence_lollipop(au_metrics, au_groups, "Australia",  ncol = 4)
+lolli_gc <- plot_prominence_lollipop(gc_metrics, gc_groups, "Gulf Coast", ncol = 5)
+
+lolli_au
+lolli_gc
+
+
+
+# 10.1. Top-10 concepts by prominence per sub-region — ranked dot (lollipop) chart
+
+plot_prominence <- function(metrics_list, label, groups_df = NULL, top_n = 10) {
+  
+  group_var <- if (!is.null(groups_df)) "Group" else "concept_type"
+  
+  plot_data <- bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]
+    if (is.null(m)) return(NULL)
+    df <- m$node_df %>% arrange(desc(prominence)) %>% head(top_n) %>%
+      mutate(subregion = r)
+    if (!is.null(groups_df))
+      df <- df %>% left_join(groups_df, by = "name") %>%
+      mutate(Group = replace_na(Group, "Other"))
+    else
+      df <- df %>% mutate(Group = concept_type)
+    df
+  }))
+  
+  group_colours_used <- if (!is.null(groups_df)) GROUP_COLOURS else
+    c("Transmitter" = "#E69F00", "Receiver" = "#56B4E9",
+      "Ordinary"    = "#009E73", "Isolated"  = "grey60")
+  
+  # Restrict the fixed order to whatever groups are actually present (Other always sticks around)
+  group_levels_present <- GROUP_ORDER[GROUP_ORDER %in% unique(plot_data$Group)]
+  
+  # One Group value per concept (in case a concept appears with the same Group across subregions)
+  concept_groups <- plot_data %>%
+    group_by(name) %>%
+    summarise(Group     = first(.data[[group_var]]),
+              mean_prom = mean(prominence, na.rm = TRUE),
+              .groups   = "drop") %>%
+    mutate(Group = factor(Group, levels = group_levels_present)) %>%
+    arrange(Group, desc(mean_prom))
+  
+  # Final concept order: grouped first (Central Concept -> ... -> Policy & Economics -> Other),
+  # ranked by mean prominence within each group
+  concept_order <- concept_groups$name
+  
+  plot_data <- plot_data %>%
+    mutate(name = factor(name, levels = rev(concept_order)))
+  
+  # Colour for each y-axis label, in the same order as the factor levels (rev(concept_order))
+  label_colours <- group_colours_used[
+    concept_groups$Group[match(rev(concept_order), concept_groups$name)]
+  ]
+  label_colours[is.na(label_colours)] <- "grey20"
+  
+  # Group lookup per concept, used only to drive the invisible legend-generating layer below
+  group_lookup <- setNames(as.character(concept_groups$Group), concept_groups$name)
+  
+  plot_data <- plot_data %>%
+    mutate(Group = factor(group_lookup[as.character(name)], levels = group_levels_present))
+  
+  ggplot(plot_data, aes(x = subregion, y = name)) +
+    
+    geom_tile(aes(fill = prominence), colour = "white", linewidth = 0.8) +
+    geom_text(aes(label = round(prominence, 2)),
+              size = 2.5, colour = "grey20") +
+    scale_fill_gradientn(
+      colours  = c("#f7fbff", "#9ecae1", "#2171b5"),
+      na.value = "grey92",
+      name     = "Prominence",
+      guide    = guide_colourbar(position = "right")   # keep Prominence legend on the right
+    ) +
+    
+    # --- Switch scales so Group gets its own legend, independent of the Prominence fill ---
+    new_scale_fill() +
+    
+    # Invisible layer: exists only so the Group colours get a legend at the bottom.
+    # size = 0 / alpha = 0 keeps it from showing up on the tiles themselves.
+    geom_point(aes(fill = Group), shape = 22, size = 0, alpha = 0, stroke = 0) +
+    scale_fill_manual(
+      values = group_colours_used, name = NULL, drop = FALSE,
+      guide  = guide_legend(position = "bottom", override.aes = list(size = 5, alpha = 1))
+    ) +
+    
+    scale_x_discrete(expand = expansion(add = c(0.6, 0.3))) +
+    labs(title = paste("Top", top_n, "concepts by Prominence —", label),
+         x = NULL, y = NULL) +
+    theme_minimal(base_size = 9) +
+    theme(
+      axis.text.x       = element_text(angle = 0, hjust = 0.5),
+      axis.text.y       = element_text(size = 8, face = "bold", colour = label_colours),
+      panel.grid        = element_blank(),
+      legend.title      = element_text(size = 8),
+      legend.text       = element_text(size = 7),
+      plot.title        = element_text(size = 10, face = "bold")
+    )
+}
+
+prom_Aus<-plot_prominence(au_metrics, "Australia",  groups_df = au_groups)
+prom_Gc<-plot_prominence(gc_metrics, "Gulf Coast", groups_df = gc_groups)
+
+# ---- Export: PNG + vector PDF + 600-dpi LZW TIFF ----
+ggsave("Prominence_AU_subregions.png", prom_Aus,
+       width = 15, height = 7, units = "in", dpi = 1200)
+
+ggsave("Prominence_AU_subregions.pdf", prom_Aus,
+       width = 17, height = 8, units = "in", device = cairo_pdf)
+
+ggsave("Prominence_AU_subregions.tiff", prom_Aus,
+       width = 17, height = 8, units = "in", dpi = 600,
+       compression = "lzw")
+
+
+ggsave("Prominence_GC_subregions.png", prom_Gc,
+       width = 15, height = 7, units = "in", dpi = 1200)
+
+ggsave("Prominence_GC_subregions.pdf", prom_Gc,
+       width = 17, height = 8, units = "in", device = cairo_pdf)
+
+ggsave("Prominence_GC_subregions.tiff", prom_Gc,
+       width = 17, height = 8, units = "in", dpi = 600,
+       compression = "lzw")
+
+
+#Issue with this plot above is that numbers are not comparable across different sttes or subregions, because prominence is calculated within each of these and not across all of them. 
+# For this reason, we are going to do a graph where prominence is in a ranking and not in a number base. 
+
+# 10.2 Prominence Plot - Ranking
+
+
+plot_prominence_rank <- function(metrics_list, label, groups_df = NULL, top_n = 10,
+                                 col_order = names(metrics_list)) {
+  
+  group_var <- if (!is.null(groups_df)) "Group" else "concept_type"
+  
+  plot_data <- bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]; if (is.null(m)) return(NULL)
+    df <- m$node_df %>% arrange(desc(prominence)) %>% head(top_n) %>%
+      mutate(subregion = r, prom_rank = row_number())          # 1 = most prominent
+    if (!is.null(groups_df))
+      df <- df %>% left_join(groups_df, by = "name") %>% mutate(Group = replace_na(Group, "Other"))
+    else
+      df <- df %>% mutate(Group = concept_type)
+    df
+  }))
+  
+  plot_data <- plot_data %>% mutate(subregion = factor(subregion, levels = col_order))
+  
+  group_colours_used <- if (!is.null(groups_df)) GROUP_COLOURS else
+    c("Transmitter"="#E69F00","Receiver"="#56B4E9","Ordinary"="#009E73","Isolated"="grey60")
+  
+  group_levels_present <- GROUP_ORDER[GROUP_ORDER %in% unique(plot_data$Group)]
+  
+  # order concepts by group, then by mean rank (best first) within group
+  concept_groups <- plot_data %>%
+    group_by(name) %>%
+    summarise(Group = first(.data[[group_var]]),
+              mean_rank = mean(prom_rank, na.rm = TRUE), .groups = "drop") %>%
+    mutate(Group = factor(Group, levels = group_levels_present)) %>%
+    arrange(Group, mean_rank)
+  
+  concept_order <- concept_groups$name
+  plot_data <- plot_data %>% mutate(name = factor(name, levels = rev(concept_order)))
+  
+  label_colours <- group_colours_used[
+    concept_groups$Group[match(rev(concept_order), concept_groups$name)]]
+  label_colours[is.na(label_colours)] <- "grey20"
+  
+  group_lookup <- setNames(as.character(concept_groups$Group), concept_groups$name)
+  plot_data <- plot_data %>%
+    mutate(Group = factor(group_lookup[as.character(name)], levels = group_levels_present))
+  
+  ggplot(plot_data, aes(x = subregion, y = name)) +
+    geom_tile(aes(fill = prom_rank), colour = "white", linewidth = 0.8) +
+    geom_text(aes(label = prom_rank), size = 2.5, colour = "grey20") +
+    scale_fill_gradientn(
+      colours  = c("#2171b5", "#6baed6", "#c6dbef", "#f7fbff"),  # rank 1 dark -> 10 light
+      na.value = "grey92",
+      name     = "Prominence\nranking",
+      limits   = c(1, top_n),
+      breaks   = c(1, top_n),
+      labels   = c("1 (highest)", paste0(top_n, " (lowest)")),
+      guide    = guide_colourbar(position = "right", reverse = TRUE)) +
+    
+    ggnewscale::new_scale_fill() +
+    geom_point(aes(fill = Group), shape = 22, size = 0, alpha = 0, stroke = 0) +
+    scale_fill_manual(values = group_colours_used, name = NULL, drop = FALSE,
+                      guide = guide_legend(position = "bottom", override.aes = list(size = 5, alpha = 1))) +
+    
+    scale_x_discrete(expand = expansion(add = c(0.6, 0.3))) +
+    labs(title = paste(label),
+         x = NULL, y = NULL) +
+    theme_fcm() +
+    theme(
+      plot.title    = element_text(size = 14, face = "bold"),
+      axis.title    = element_text(size = 11),
+      axis.text     = element_text(size = 9),
+      axis.text.y   = element_text(size = 10, face = "bold", colour = label_colours),
+      axis.text.x   = element_text(size = 10, face = "bold"),
+      strip.text    = element_text(size = 11, face = "bold"),
+      
+      # 3) centre legend title + 2) add space between title and the colourbar
+      legend.title  = element_text(size = 8, hjust = 0.5, margin = margin(b = 8)),
+      legend.text   = element_text(size = 8),
+      
+      # 1) vertical grid lines off, horizontal kept
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor   = element_blank(),
+      
+      plot.caption  = element_text(size = 8, hjust = 0, colour = "grey30")
+    )
+}
+
+prom_Aus_rank <- plot_prominence_rank(
+  au_metrics, "Australia", groups_df = au_groups,
+  col_order = c("Western Australia", "North Australia", "Queensland", "New South Wales"))
+
+prom_Gc_rank <- plot_prominence_rank(
+  gc_metrics, "US Gulf Coast (USGC)", groups_df = gc_groups,
+  col_order = c("Texas", "Louisiana", "Mississippi", "Alabama", "Florida"))
+
+
+ggsave("G2_prominence_rank_australia.png",  prom_Aus_rank, width = 10, height = 11, dpi = 1200)
+ggsave("G2_prominence_rank_gulfcoast.png",  prom_Gc_rank, width = 11, height = 11, dpi = 1200)
+
+
+# 10.3 Conflicts table plot (if any conflicts exist)
+
+if (nrow(au_conflicts) > 0) {
+  p_conf_au <- au_conflicts %>%
+    select(region_A, region_B, pair_key, polarity_A, polarity_B) %>%
+    ggplot(aes(x = pair_key, y = paste(region_A, "vs", region_B))) +
+    geom_tile(aes(fill = polarity_A), colour = "white") +
+    geom_text(aes(label = paste(polarity_A, "/", polarity_B)), size = 2.8) +
+    labs(title = "Polarity conflicts — Australia",
+         x = "Connection (From→To)", y = NULL, fill = "Polarity in A") +
+    theme_bw(base_size = 9) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  ggsave("Conflicts_Australia.pdf", p_conf_au, width = 12, height = 5)
+}
+
+if (nrow(gc_conflicts) > 0) {
+  p_conf_gc <- gc_conflicts %>%
+    select(region_A, region_B, pair_key, polarity_A, polarity_B) %>%
+    ggplot(aes(x = pair_key, y = paste(region_A, "vs", region_B))) +
+    geom_tile(aes(fill = polarity_A), colour = "white") +
+    geom_text(aes(label = paste(polarity_A, "/", polarity_B)), size = 2.8) +
+    labs(title = "Polarity conflicts — Gulf Coast",
+         x = "Connection (From→To)", y = NULL, fill = "Polarity in A") +
+    theme_bw(base_size = 9) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  ggsave("Conflicts_GulfCoast.pdf", p_conf_gc, width = 12, height = 5)
+}
+
+cat("\n\nGoal 2 analysis complete. All outputs saved.\n")
+
+
+
+
+# 10.4. Standardized metric heatmap
+
+library(tidyverse)
+# drop NULL sub-regions and tag each unit's region
+au_metrics_ok <- au_metrics[!vapply(au_metrics, is.null, logical(1))]
+gc_metrics_ok <- gc_metrics[!vapply(gc_metrics, is.null, logical(1))]
+all_metrics   <- c(au_metrics_ok, gc_metrics_ok)
+
+region_lookup <- bind_rows(
+  tibble(unit = names(au_metrics_ok), region = "Australia"),
+  tibble(unit = names(gc_metrics_ok), region = "Gulf Coast"))
+
+
+metric_table <- function(metrics_list, region_label) {
+  bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]
+    tibble(unit = r, region = region_label,
+           N = m$N, E = m$E, density = m$density, RT_ratio = m$RT_ratio,
+           edges_per_node = m$E / m$N, apl = m$apl, diameter = m$diam,
+           clustering = m$clust_avg, circuit_rank = m$circ_rank,
+           n_cycles = m$n_cycles,
+           loop_RB_ratio = m$n_reinforcing / pmax(m$n_balancing, 1),
+           pct_positive = m$n_pos / pmax(m$n_pos + m$n_neg, 1))
+  }))
+}
+
+mt <- bind_rows(metric_table(au_metrics_ok, "Australia"),
+                metric_table(gc_metrics_ok, "Gulf Coast"))
+
+long <- mt %>%
+  mutate(across(where(is.numeric), ~ as.numeric(scale(.)))) %>%
+  pivot_longer(-c(unit, region), names_to = "metric", values_to = "z")
+
+ggplot(long, aes(metric, unit, fill = z)) +
+  geom_tile(colour = "white") +
+  geom_text(aes(label = ifelse(is.na(z), "", round(z, 1))), size = 2.5) +
+  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+                       midpoint = 0, na.value = "grey90", name = "z-score") +
+  facet_grid(region ~ ., scales = "free_y", space = "free_y") +
+  labs(title = "Structural metrics, z-scored across all units", x = NULL, y = NULL) +
+  theme_minimal(base_size = 9) +
+  theme(axis.text.x = element_text(angle = 40, hjust = 1), panel.grid = element_blank(),
+        strip.text.y = element_text(angle = 0, face = "bold"))
+
+
+
+
+
+
+
+
+
+
+# ============================================================
+# ============== SOME EXTRA ANALYSIS =========================
+# ============================================================
+
+
+# SCHAFFERNICHT & GROESSER (2011): ELEMENT DISTANCE RATIO
+# ------------------------------------------------------------
+
+# EDR FOR ALL PAIRWISE SUB-REGION COMPARISONS
+# ------------------------------------------------------------
 # EDR (Element Distance Ratio) from Schaffernicht & Groesser (2011) §3.3.
 # Applied here between sub-regions WITHIN the same workshop:
 #   • Australia: 6 pairs from 4 sub-regions  (4 choose 2)
@@ -612,9 +1140,9 @@ au_edr_list <- run_pairwise_EDR(au_metrics, "AUSTRALIA")
 gc_edr_list <- run_pairwise_EDR(gc_metrics, "GULF COAST")
 
 
-# ============================================================
-# SECTION 9 — SILS + LDR + MDR FOR ALL PAIRWISE COMPARISONS
-# ============================================================
+
+# SILS + LDR + MDR FOR ALL PAIRWISE COMPARISONS
+# ------------------------------------------------------------
 # Following Schaffernicht & Groesser (2011) §3.4–3.5.
 # Steps:
 #   (a) SILS approximation: shortest independent loop set
@@ -735,330 +1263,3 @@ au_mdr_list <- run_pairwise_LDR_MDR(au_metrics, au_edr_list, "AUSTRALIA")
 gc_mdr_list <- run_pairwise_LDR_MDR(gc_metrics, gc_edr_list, "GULF COAST")
 
 
-# ============================================================
-# SECTION 10 — SUMMARY TABLES
-# ============================================================
-
-# 10.1 Structural metrics table
-make_metrics_table <- function(metrics_list, label) {
-  cat(sprintf("\n\n========== METRICS TABLE — %s ==========\n", label))
-  tbl <- bind_rows(lapply(names(metrics_list), function(r) {
-    m <- metrics_list[[r]]
-    if (is.null(m)) return(NULL)
-    data.frame(
-      SubRegion    = r,
-      N            = m$N,
-      E            = m$E,
-      Density      = round(m$density,   4),
-      Transmitters = m$n_tx,
-      Receivers    = m$n_rx,
-      Ordinary     = m$n_ord,
-      RT_Ratio     = round(ifelse(is.na(m$RT_ratio), 0, m$RT_ratio), 3),
-      Pos_pct      = round(100 * m$n_pos / max(m$E, 1), 1),
-      Neg_pct      = round(100 * m$n_neg / max(m$E, 1), 1),
-      APL          = round(ifelse(is.na(m$apl), 0, m$apl), 3),
-      Diameter     = ifelse(is.na(m$diam), 0, m$diam),
-      Clust_avg    = round(m$clust_avg, 3),
-      Circ_Rank    = m$circ_rank,
-      Cycles_le7   = m$n_cycles,
-      R_loops      = m$n_reinforcing,
-      B_loops      = m$n_balancing
-    )
-  }))
-  print(tbl, row.names = FALSE)
-  invisible(tbl)
-}
-
-au_tbl <- make_metrics_table(au_metrics, "AUSTRALIA SUB-REGIONS")
-gc_tbl <- make_metrics_table(gc_metrics, "GULF COAST SUB-REGIONS")
-gv_tbl <- make_metrics_table(gv_metrics, "GALVESTON FISHERIES")
-
-# Combined comparison table across all workshops (Australia, Gulf Coast, Galveston)
-comparison_table_g2 <- bind_rows(
-  au_tbl %>% mutate(Workshop = "Australia"),
-  gc_tbl %>% mutate(Workshop = "Gulf Coast"),
-  gv_tbl %>% mutate(Workshop = "Galveston")
-) %>%
-  relocate(Workshop)
-cat("\n\n========== COMBINED METRICS TABLE — ALL WORKSHOPS ==========\n")
-print(comparison_table_g2, row.names = FALSE)
-
-
-# ============================================================
-# SECTION 11 — VISUALISATIONS
-# ============================================================
-
-# Helper: heatmap for square matrices
-
-
-plot_heatmap <- function(mat, title, low_col = "white", high_col = "#0072B2",
-                         out_file = NULL) {
-  df <- as.data.frame(as.table(mat)) %>%
-    setNames(c("Row","Col","Value")) %>%
-    filter(!is.na(Value))
-  p <- ggplot(df, aes(x = Col, y = Row, fill = Value)) +
-    geom_tile(colour = "white", linewidth = 0.5) +
-    geom_text(aes(label = round(Value, 2)), size = 3.5, colour = "black") +
-    scale_fill_gradient(
-      low = low_col, high = high_col,
-      limits = c(0, 1), name = "Jaccard",
-      guide = guide_colorbar(
-        barwidth = 1.2,      # width of the color bar (in "lines" units)
-        barheight = 8,       # height/length of the color bar
-        title.vjust = 1      # nudges title relative to the bar
-      )
-    ) +
-    labs(title = title, x = NULL, y = NULL) +
-    theme_bw(base_size = 11) +
-    theme(
-      axis.text.x = element_text(angle = 0, hjust = 0.5),
-      axis.text.y = element_text(angle = 90, hjust = 0.5),
-      legend.title = element_text(margin = margin(b = 10))  # space below title, above the "1"
-    )
-  if (!is.null(out_file)) ggsave(out_file, p, width = 6, height = 5)
-  p
-}
-
-# 11.1 Concept Jaccard heatmaps
-
-p_au_cjac <- plot_heatmap(au_cjac, "Australia - Elements")
-p_gc_cjac <- plot_heatmap(gc_cjac, "Gulf Coast - Elements")
-
-png(filename = "Jaccard_Cncept_AU_subregions.png", 
-    width = 7, height = 5, units = "in", # Set size in inches
-    res = 1200)  
-p_au_cjac
-dev.off()
-
-png(filename = "Jaccard_Cncept_GC_subregions.png", 
-    width = 7, height = 5, units = "in", # Set size in inches
-    res = 1200)  
-p_gc_cjac
-dev.off()
-
-
-# 11.2 Link Jaccard heatmaps
-
-p_au_ljac<-plot_heatmap(au_ljac, "Australia - Links")
-p_gc_ljac<-plot_heatmap(gc_ljac, "Gulf Coast - Links")
-
-png(filename = "Jaccard_Link_AU_subregions.png", 
-    width = 7, height = 5, units = "in", # Set size in inches
-    res = 1200)  
-p_au_ljac
-dev.off()
-
-png(filename = "Jaccard_Link_GC_subregions.png", 
-    width = 7, height = 5, units = "in", # Set size in inches
-    res = 1200)  
-p_gc_ljac
-dev.off()
-
-
-plot_heatmap(au_ljac, high_col = "#009E73",
-             out_file = "Jaccard_Link_Australia.pdf")
-plot_heatmap(gc_ljac, "Link Jaccard — Gulf Coast sub-regions",
-             high_col = "#009E73",
-             out_file = "Jaccard_Link_GulfCoast.pdf")
-
-# 11.3 EDR heatmaps
-plot_heatmap(au_dist$EDR, "EDR — Australia sub-regions",
-             high_col = "#D55E00",
-             out_file = "EDR_Australia.pdf")
-plot_heatmap(gc_dist$EDR, "EDR — Gulf Coast sub-regions",
-             high_col = "#D55E00",
-             out_file = "EDR_GulfCoast.pdf")
-
-# 11.4 MDR heatmaps
-plot_heatmap(au_dist$MDR, "MDR — Australia sub-regions",
-             high_col = "#CC79A7",
-             out_file = "MDR_Australia.pdf")
-plot_heatmap(gc_dist$MDR, "MDR — Gulf Coast sub-regions",
-             high_col = "#CC79A7",
-             out_file = "MDR_GulfCoast.pdf")
-
-# 11.5 Structural metrics bar charts (faceted)
-plot_structural <- function(tbl, label) {
-  tbl %>%
-    select(SubRegion, N, E, Transmitters, Receivers,
-           Ordinary, R_loops, B_loops) %>%
-    pivot_longer(-SubRegion, names_to = "Metric", values_to = "Value") %>%
-    ggplot(aes(x = SubRegion, y = Value, fill = SubRegion)) +
-    geom_col(show.legend = FALSE) +
-    facet_wrap(~Metric, scales = "free_y") +
-    labs(title = paste("Structural metrics —", label), x = NULL, y = NULL) +
-    theme_bw(base_size = 10) +
-    theme(axis.text.x = element_text(angle = 35, hjust = 1))
-}
-
-
-ggsave("Structural_AU_subregions.pdf",
-       plot_structural(au_tbl, "Australia sub-regions"),
-       width = 12, height = 8)
-ggsave("Structural_GC_subregions.pdf",
-       plot_structural(gc_tbl, "Gulf Coast sub-regions"),
-       width = 12, height = 8)
-
-# 11.6 Top-10 concepts by prominence per sub-region — ranked dot (lollipop) chart
-# Colored by concept group (Ecological, Fisheries, Human Dimensions, etc.)
-library(ggnewscale)
-GROUP_COLOURS <- c(
-  "Central Concept"                   = "#FBD73F",
-  "Ecological & Biological Factors"   = "#9AD354",
-  "Human Dimensions"                  = "#F8895E",
-  "Fisheries Operations & Practices"  = "#E382BA",
-  "Fisheries Research & Management"   = "#8695C2",
-  "Policy & Economics"                = "#5EB99B",
-  "Other"                             = "grey60"
-)
-
-# Fixed display order for groups (top of plot -> bottom, since axis is reversed below)
-GROUP_ORDER <- c(
-  "Central Concept",
-  "Ecological & Biological Factors",
-  "Human Dimensions",
-  "Fisheries Operations & Practices",
-  "Fisheries Research & Management",
-  "Policy & Economics",
-  "Other"
-)
-
-plot_prominence <- function(metrics_list, label, groups_df = NULL, top_n = 10) {
-  
-  group_var <- if (!is.null(groups_df)) "Group" else "concept_type"
-  
-  plot_data <- bind_rows(lapply(names(metrics_list), function(r) {
-    m <- metrics_list[[r]]
-    if (is.null(m)) return(NULL)
-    df <- m$node_df %>% arrange(desc(prominence)) %>% head(top_n) %>%
-      mutate(subregion = r)
-    if (!is.null(groups_df))
-      df <- df %>% left_join(groups_df, by = "name") %>%
-      mutate(Group = replace_na(Group, "Other"))
-    else
-      df <- df %>% mutate(Group = concept_type)
-    df
-  }))
-  
-  group_colours_used <- if (!is.null(groups_df)) GROUP_COLOURS else
-    c("Transmitter" = "#E69F00", "Receiver" = "#56B4E9",
-      "Ordinary"    = "#009E73", "Isolated"  = "grey60")
-  
-  # Restrict the fixed order to whatever groups are actually present (Other always sticks around)
-  group_levels_present <- GROUP_ORDER[GROUP_ORDER %in% unique(plot_data$Group)]
-  
-  # One Group value per concept (in case a concept appears with the same Group across subregions)
-  concept_groups <- plot_data %>%
-    group_by(name) %>%
-    summarise(Group     = first(.data[[group_var]]),
-              mean_prom = mean(prominence, na.rm = TRUE),
-              .groups   = "drop") %>%
-    mutate(Group = factor(Group, levels = group_levels_present)) %>%
-    arrange(Group, desc(mean_prom))
-  
-  # Final concept order: grouped first (Central Concept -> ... -> Policy & Economics -> Other),
-  # ranked by mean prominence within each group
-  concept_order <- concept_groups$name
-  
-  plot_data <- plot_data %>%
-    mutate(name = factor(name, levels = rev(concept_order)))
-  
-  # Colour for each y-axis label, in the same order as the factor levels (rev(concept_order))
-  label_colours <- group_colours_used[
-    concept_groups$Group[match(rev(concept_order), concept_groups$name)]
-  ]
-  label_colours[is.na(label_colours)] <- "grey20"
-  
-  # Group lookup per concept, used only to drive the invisible legend-generating layer below
-  group_lookup <- setNames(as.character(concept_groups$Group), concept_groups$name)
-  
-  plot_data <- plot_data %>%
-    mutate(Group = factor(group_lookup[as.character(name)], levels = group_levels_present))
-  
-  ggplot(plot_data, aes(x = subregion, y = name)) +
-    
-    geom_tile(aes(fill = prominence), colour = "white", linewidth = 0.8) +
-    geom_text(aes(label = round(prominence, 2)),
-              size = 2.5, colour = "grey20") +
-    scale_fill_gradientn(
-      colours  = c("#f7fbff", "#9ecae1", "#2171b5"),
-      na.value = "grey92",
-      name     = "Prominence",
-      guide    = guide_colourbar(position = "right")   # keep Prominence legend on the right
-    ) +
-    
-    # --- Switch scales so Group gets its own legend, independent of the Prominence fill ---
-    new_scale_fill() +
-    
-    # Invisible layer: exists only so the Group colours get a legend at the bottom.
-    # size = 0 / alpha = 0 keeps it from showing up on the tiles themselves.
-    geom_point(aes(fill = Group), shape = 22, size = 0, alpha = 0, stroke = 0) +
-    scale_fill_manual(
-      values = group_colours_used, name = NULL, drop = FALSE,
-      guide  = guide_legend(position = "bottom", override.aes = list(size = 5, alpha = 1))
-    ) +
-    
-    scale_x_discrete(expand = expansion(add = c(0.6, 0.3))) +
-    labs(title = paste("Top", top_n, "concepts by Prominence —", label),
-         x = NULL, y = NULL) +
-    theme_minimal(base_size = 9) +
-    theme(
-      axis.text.x       = element_text(angle = 0, hjust = 0.5),
-      axis.text.y       = element_text(size = 8, face = "bold", colour = label_colours),
-      panel.grid        = element_blank(),
-      legend.title      = element_text(size = 8),
-      legend.text       = element_text(size = 7),
-      plot.title        = element_text(size = 10, face = "bold")
-    )
-}
-
-prom_Aus<-plot_prominence(au_metrics, "Australia",  groups_df = au_groups)
-prom_Gc<-plot_prominence(gc_metrics, "Gulf Coast", groups_df = gc_groups)
-
-ggsave("Prominence_AU_subregions.pdf",
-       plot_prominence(au_metrics, "Australia",  groups_df = au_groups),
-       width = 10, height = 8)
-ggsave("Prominence_GC_subregions.pdf",
-       plot_prominence(gc_metrics, "Gulf Coast", groups_df = gc_groups),
-       width = 10, height = 8)
-
-png(filename = "Prominence_AU_subregions.png", 
-    width = 10, height = 8, units = "in", # Set size in inches
-    res = 1200)  
-prom_Aus
-dev.off()
-
-png(filename = "Prominence_GC_subregions.png", 
-    width = 10, height = 8, units = "in", # Set size in inches
-    res = 1200)  
-prom_Gc
-dev.off()
-
-# 11.7 Conflicts table plot (if any conflicts exist)
-if (nrow(au_conflicts) > 0) {
-  p_conf_au <- au_conflicts %>%
-    select(region_A, region_B, pair_key, polarity_A, polarity_B) %>%
-    ggplot(aes(x = pair_key, y = paste(region_A, "vs", region_B))) +
-    geom_tile(aes(fill = polarity_A), colour = "white") +
-    geom_text(aes(label = paste(polarity_A, "/", polarity_B)), size = 2.8) +
-    labs(title = "Polarity conflicts — Australia",
-         x = "Connection (From→To)", y = NULL, fill = "Polarity in A") +
-    theme_bw(base_size = 9) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave("Conflicts_Australia.pdf", p_conf_au, width = 12, height = 5)
-}
-
-if (nrow(gc_conflicts) > 0) {
-  p_conf_gc <- gc_conflicts %>%
-    select(region_A, region_B, pair_key, polarity_A, polarity_B) %>%
-    ggplot(aes(x = pair_key, y = paste(region_A, "vs", region_B))) +
-    geom_tile(aes(fill = polarity_A), colour = "white") +
-    geom_text(aes(label = paste(polarity_A, "/", polarity_B)), size = 2.8) +
-    labs(title = "Polarity conflicts — Gulf Coast",
-         x = "Connection (From→To)", y = NULL, fill = "Polarity in A") +
-    theme_bw(base_size = 9) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave("Conflicts_GulfCoast.pdf", p_conf_gc, width = 12, height = 5)
-}
-
-cat("\n\nGoal 2 analysis complete. All outputs saved.\n")

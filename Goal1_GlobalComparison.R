@@ -931,10 +931,6 @@ ggsave("G1_P6_indegree_vs_outdegree.tiff", p_g1_6,
        width = 17, height = 8, units = "in", dpi = 1200,
        compression = "lzw")
 
-pdf(filename = "G1_P6_indegree_vs_outdegree.png",
-    width = 17, height = 8, units = "in", res = 1200)
-p_g1_6
-dev.off()
 
 
 
@@ -1042,8 +1038,30 @@ ggsave("G1_P6b_closeness_vs_betweenness.tiff", p_g1_6b,
 
 
 
+# Find LOOPS
 
+loops_by_length <- function(g, node_df, max_len = 6, min_nodes = 3) {
+  cyc <- find_simple_cycles(g, max_length = max_len)
+  if (!length(cyc)) return(message("no cycles"))
+  ulen <- sapply(cyc, function(c) length(unique(c)))
+  cyc  <- cyc[ulen >= min_nodes]                       # drop 2-node mutual edges
+  if (!length(cyc)) return(message("no loops with >= ", min_nodes, " concepts"))
+  pol  <- sapply(cyc, function(c) classify_loop_polarity(g, c))
+  deg  <- setNames(node_df$degree, node_df$name)
+  score <- sapply(cyc, function(c) mean(deg[unique(c)], na.rm = TRUE))
+  ulen  <- sapply(cyc, function(c) length(unique(c)))
+  ord   <- order(-ulen, -score)                        # longest first, then most connected
+  for (i in head(ord, 12)) {
+    c <- cyc[[i]]
+    cat(sprintf("[%s | %d concepts | mean deg %.1f]  %s\n",
+                ifelse(pol[i] > 0, "R", ifelse(pol[i] < 0, "B", "?")),
+                length(unique(c)), mean(deg[unique(c)], na.rm = TRUE),
+                paste(c, collapse = " -> ")))
+  }
+}
 
+loops_by_length(g_au, metrics_au$node_df, max_len = 6, min_nodes = 3)
+loops_by_length(g_au, metrics_au$node_df, max_len = 6, min_nodes = 3)
 
 
 
@@ -1239,7 +1257,7 @@ compute_EDR <- function(metrics_A, metrics_B,
   
   # ---- Additional element-level fractions ----
   # These follow Table 4 in the paper and provide interpretable context.
-  cat("\n  Element-level comparison fractions (cf. Table 4 in paper):\n")
+  cat("\n  Element-level fractions (cf. Table 4 in paper):\n")
   cat("    Fraction unique to A:      ", round(v_uA / v, 3), "\n")
   cat("    Fraction unique to B:      ", round(v_uB / v, 3), "\n")
   cat("    Fraction common:           ", round(v_c  / v, 3), "\n")
