@@ -645,7 +645,7 @@ GROUP_COLOURS <- c(
 )
 
 # Shared plot theme
-theme_fcm <- function(base_size = 10) {
+theme_fcm <- function(base_size = 14) {
   theme_bw(base_size = base_size) %+replace%
     theme(
       strip.text = element_text(
@@ -887,12 +887,11 @@ plot_prominence_rank <- function(metrics_list, label, groups_df = NULL, top_n = 
   label_colours[is.na(label_colours)] <- "grey20"
   
   group_lookup <- setNames(as.character(concept_groups$Group), concept_groups$name)
-  plot_data <- plot_data %>%
-    mutate(Group = factor(group_lookup[as.character(name)], levels = group_levels_present))
+  plot_data <- plot_data %>% mutate(name = factor(name, levels = rev(concept_order)))
   
   ggplot(plot_data, aes(x = subregion, y = name)) +
     geom_tile(aes(fill = prom_rank), colour = "white", linewidth = 0.8) +
-    geom_text(aes(label = prom_rank), size = 2.5, colour = "grey20") +
+    geom_text(aes(label = prom_rank), size = 4, colour = "black") +
     scale_fill_gradientn(
       colours  = c("#2171b5", "#6baed6", "#c6dbef", "#f7fbff"),  # rank 1 dark -> 10 light
       na.value = "grey92",
@@ -914,14 +913,14 @@ plot_prominence_rank <- function(metrics_list, label, groups_df = NULL, top_n = 
     theme(
       plot.title    = element_text(size = 14, face = "bold"),
       axis.title    = element_text(size = 11),
-      axis.text     = element_text(size = 9),
-      axis.text.y   = element_text(size = 10, face = "bold", colour = label_colours),
-      axis.text.x   = element_text(size = 10, face = "bold"),
+      axis.text     = element_text(size = 12),
+      axis.text.y   = element_text(size = 12, face = "bold", colour = label_colours),
+      axis.text.x   = element_text(size = 12, face = "bold"),
       strip.text    = element_text(size = 11, face = "bold"),
       
       # 3) centre legend title + 2) add space between title and the colourbar
-      legend.title  = element_text(size = 8, hjust = 0.5, margin = margin(b = 8)),
-      legend.text   = element_text(size = 8),
+      legend.title  = element_text(size = 12, hjust = 0.5, margin = margin(b = 14)),
+      legend.text   = element_text(size = 12),
       
       # 1) vertical grid lines off, horizontal kept
       panel.grid.major.x = element_blank(),
@@ -940,8 +939,8 @@ prom_Gc_rank <- plot_prominence_rank(
   col_order = c("Texas", "Louisiana", "Mississippi", "Alabama", "Florida"))
 
 
-ggsave("G2_prominence_rank_australia.png",  prom_Aus_rank, width = 10, height = 11, dpi = 1200)
-ggsave("G2_prominence_rank_gulfcoast.png",  prom_Gc_rank, width = 11, height = 11, dpi = 1200)
+ggsave("G2_prominence_rank_australia.png",  prom_Aus_rank, width = 14, height = 11, dpi = 1200)
+ggsave("G2_prominence_rank_gulfcoast.png",  prom_Gc_rank, width = 14, height = 11, dpi = 1200)
 
 
 # 10.3 Conflicts table plot (if any conflicts exist)

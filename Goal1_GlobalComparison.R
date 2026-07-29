@@ -29,7 +29,7 @@
 # ============================================================
 
 required_pkgs <- c("readxl", "igraph", "dplyr", "tidyr", "ggplot2",
-                   "stringr", "knitr", "scales")
+                   "stringr", "knitr", "scales", "ggrepel")
 
 for (pkg in required_pkgs) {
   if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
@@ -42,6 +42,7 @@ library(tidyr)
 library(ggplot2)
 library(stringr)
 library(scales)
+library(ggrepel)
 
 
 # ============================================================
@@ -787,10 +788,11 @@ cat("Plot G1-6: Indegree vs Outdegree...\n")
 full_df_g1 <- full_df_g1 %>%
   mutate(Region = factor(
     recode(Region,
-           "Alabama (Gulf Coast USA)" = "US Gulf Coast (USGC)",
+           "US Gulf Coast" = "US Gulf Coast (USGC)",
            "Australia"                = "Australia"),
     levels = c("US Gulf Coast (USGC)", "Australia")
   ))
+
 
 # ---- Threshold diagnostic: Degree with p-quantile cutoff per region ----
 
@@ -813,7 +815,7 @@ p_thresh <- ggplot(diag_df,
                    aes(x = reorder(Concept, Degree), y = Degree, colour = keep)) +
   geom_segment(aes(xend = Concept, y = 0, yend = Degree),
                colour = "grey80", linewidth = 0.3) +
-  geom_point(size = 1.8) +
+  geom_point(size = 2.5) +
   geom_hline(data = thr_g1, aes(yintercept = thresh),
              linetype = "dashed", colour = "red", linewidth = 0.5) +
   geom_text(data = thr_g1,
@@ -879,7 +881,7 @@ p_g1_6 <- ggplot(plot_df_g1,
   geom_label_repel(
     data          = label_df_g1,
     aes(label     = str_wrap(Concept, 20)),
-    size          = 2.6,
+    size          = 4,
     label.padding = unit(0.12, "lines"),
     box.padding   = unit(0.4, "lines"),
     point.padding = unit(0.2, "lines"),
@@ -913,13 +915,14 @@ p_g1_6 <- ggplot(plot_df_g1,
   ) +
   theme_fcm()+
   theme(
-    plot.title    = element_text(size = 14, face = "bold"),
-    axis.title    = element_text(size = 11),
-    axis.text     = element_text(size = 9),
-    strip.text    = element_text(size = 11, face = "bold"),
-    legend.title  = element_text(size = 10),
-    legend.text   = element_text(size = 9),
-    plot.caption  = element_text(size = 8, hjust = 0, colour = "grey30")
+    plot.title    = element_text(size = 20, face = "bold"),
+    axis.title    = element_text(size = 16),
+    axis.text.x     = element_text(size = 14),
+    axis.text.y     = element_text(size = 14),
+    strip.text    = element_text(size = 20, face = "bold"),
+    legend.title  = element_text(size = 16),
+    legend.text   = element_text(size = 16),
+    plot.caption  = element_text(size = 15, hjust = 0, colour = "grey30")
   )
 
 
@@ -942,7 +945,7 @@ cat("Plot G1-6b: Closeness vs Betweenness...\n")
 full_df_g1 <- full_df_g1 %>%
   mutate(Region = factor(
     recode(Region,
-           "Alabama (Gulf Coast USA)" = "US Gulf Coast (USGC)",
+           "US Gulf Coast" = "US Gulf Coast (USGC)",
            "Australia"                = "Australia"),
     levels = c("US Gulf Coast (USGC)", "Australia")
   ))
@@ -988,7 +991,7 @@ p_g1_6b <- ggplot(plot_df_cb,
   geom_label_repel(
     data          = plot_df_cb,
     aes(label     = lab),
-    size          = 2.6,
+    size          = 4,
     label.padding = unit(0.12, "lines"),
     box.padding   = unit(0.5, "lines"),
     point.padding = unit(0.4, "lines"),
@@ -1010,18 +1013,22 @@ p_g1_6b <- ggplot(plot_df_cb,
   scale_y_sqrt() +          # spread the near-zero betweenness cluster
   facet_wrap(~ Region, nrow = 1, scales = "fixed") +
   labs(
-    x      = "Closeness (normalized, outgoing; higher = faster broadcaster)",
-    y      = "Betweenness (normalized; higher = more of a bridge/bottleneck)",
+    x      = "Closeness (higher = faster broadcaster)",
+    y      = "Betweenness (higher = bridge/bottleneck)",
     colour = "Concept type"
     ) +
   theme_fcm() +
   theme(
-    plot.title = element_text(size = 14, face = "bold"),
-    axis.title = element_text(size = 11), axis.text = element_text(size = 9),
-    strip.text = element_text(size = 11, face = "bold"),
-    legend.title = element_text(size = 10), legend.text = element_text(size = 9),
-    plot.caption = element_text(size = 8, hjust = 0, colour = "grey30")
+    plot.title    = element_text(size = 20, face = "bold"),
+    axis.title    = element_text(size = 15),
+    axis.text.x     = element_text(size = 14),
+    axis.text.y     = element_text(size = 14),
+    strip.text    = element_text(size = 20, face = "bold"),
+    legend.title  = element_text(size = 16),
+    legend.text   = element_text(size = 16),
+    plot.caption  = element_text(size = 15, hjust = 0, colour = "grey30")
   )
+
 
 
 
