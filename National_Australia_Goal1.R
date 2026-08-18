@@ -84,7 +84,7 @@ cat("AU groups:", paste(sort(unique(au_groups$Group)), collapse = ", "), "\n")
 AU_REGIONS <- c("Western Australia", "North Australia",
                 "Queensland",        "New South Wales")
 
-AGGREGATE_LABEL <- "Australia (aggregated)"
+AGGREGATE_LABEL <- "Australia"
 AU_UNITS <- c(AGGREGATE_LABEL, AU_REGIONS)
 
 
