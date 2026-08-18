@@ -479,6 +479,9 @@ agg_df_reg <- full_df_reg %>%
 
 p_keep <- 0.80   # label the top 20% (>= 80th percentile) of Degree
 
+IO_XLIM<-c(0,22)
+IO_YLIM<-c(0,20)
+
 label_df_io <- agg_df_reg %>%
   filter(Degree >= quantile(Degree, p_keep, na.rm = TRUE))
 
@@ -600,38 +603,38 @@ ggsave("Regional_GC_closeness_vs_betweenness.tiff", p_gc_cb,
 # ---- 7.1b COMBINED PANEL: Indegree/Outdegree (left) + Closeness/Betweenness
 #      (right), AGGREGATE MODEL ONLY ----
 
-cat("Plot: Combined Indegree/Outdegree + Closeness/Betweenness panel (Australia, aggregated model only)...\n")
 
-p_au_io_combo <- p_au_io + labs(title = NULL, subtitle = NULL, tag = "A")
-p_au_cb_combo <- p_au_cb + labs(title = NULL, tag = "B")
+cat("Plot: Combined Indegree/Outdegree + Closeness/Betweenness panel (US Gulf Coast, aggregated model only)...\n")
 
-shared_legend_au <- cowplot::get_legend(
-  p_au_io_combo + theme(legend.position = "bottom", legend.justification = "center")
+p_gc_io_combo <- p_gc_io + labs(title = NULL, subtitle = NULL, tag = "A")
+p_gc_cb_combo <- p_gc_cb + labs(title = NULL, tag = "B")
+
+shared_legend_gc <- cowplot::get_legend(
+  p_gc_io_combo + theme(legend.position = "bottom", legend.justification = "center")
 )
 
-p_au_combo <- (
-  (p_au_io_combo + theme(legend.position = "none")) |
-    (p_au_cb_combo + theme(legend.position = "none"))
+p_gc_combo <- (
+  (p_gc_io_combo + theme(legend.position = "bottom",legend.justification = "center")) |
+    (p_gc_cb_combo + theme(legend.position = "none"))
 ) /
-  shared_legend_au +
+  shared_legend_gc +
   patchwork::plot_layout(heights = c(20, 1)) +
   patchwork::plot_annotation(
-    title = ""
+    title = NULL
   ) &
-  theme(
-    legend.position = "bottom",
-    plot.title      = element_text(size = 20, face = "bold", hjust = 0.5)
-  )
+  theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.5))
 
-ggsave("National_AU_indegree_closeness_combined.png", p_au_combo,
+ggsave("Regional_GC_indegree_closeness_combined.png", p_gc_combo,
        width = 16, height = 8, units = "in", dpi = 1200)
-ggsave("National_AU_indegree_closeness_combined.pdf", p_au_combo,
+ggsave("Regional_GC_indegree_closeness_combined.pdf", p_gc_combo,
        width = 17, height = 9, units = "in", device = cairo_pdf)
-ggsave("National_AU_indegree_closeness_combined.tiff", p_au_combo,
+ggsave("Regional_GC_indegree_closeness_combined.tiff", p_gc_combo,
        width = 17, height = 9, units = "in", dpi = 600, compression = "lzw")
 
 
+
 # ---- 7.3 PROMINENCE RANKING (one column per unit, aggregate included) ----
+
 
 cat("Plot: Prominence ranking (US Gulf Coast, all units)...\n")
 
