@@ -513,7 +513,7 @@ p_au_io <- ggplot(agg_df_nat, aes(x = Indegree, y = Outdegree,
   # across ggplot2 versions, which is the likely reason it was invisible
   # before even after being repositioned).
   annotate("text", x = io_label_pos, y = io_label_pos, label = "1:1 line",
-           angle = 35, vjust = -1, size = 3, colour = "grey45") +
+           angle = 45, vjust = -1, size = 3, colour = "grey45") +
   
   scale_colour_manual(values = TYPE_COLOURS, drop = FALSE) +
   guides(colour = guide_legend(override.aes = list(size = 4, alpha = 1))) +
@@ -573,7 +573,7 @@ p_au_cb <- ggplot(plot_df_cb, aes(x = Closeness, y = Betweenness)) +
     colour = "grey15", fill = alpha("white", 0.85)
   ) +
   scale_colour_manual(values = TYPE_COLOURS, drop = FALSE) +
-  coord_cartesian(xlim = c(0.4,0.8), ylim = c(0,0.15)) +
+  coord_cartesian(xlim = c(0.4,0.75), ylim = c(0,0.12)) +
   guides(colour = guide_legend(override.aes = list(size = 4, alpha = 1))) +
   scale_size_continuous(range = c(1.5, 6), guide = "none") +
   scale_x_sqrt() +
@@ -606,13 +606,13 @@ cat("Plot: Combined Indegree/Outdegree + Closeness/Betweenness panel (Australia,
 
 # Trim the per-panel titles/subtitles so they read as sub-panels of one
 # figure rather than repeating "Australia (aggregated model)" twice.
-p_au_io_combo <- p_au_io + labs(title = "", subtitle = NULL)
-p_au_cb_combo <- p_au_cb + labs(title = "")
+p_au_io_combo <- p_au_io + labs(title = NULL, subtitle = NULL)
+p_au_cb_combo <- p_au_cb + labs(title = NULL)
 
 p_au_combo <- (p_au_io_combo | p_au_cb_combo) +
   patchwork::plot_layout(guides = "collect") +
   patchwork::plot_annotation(
-    title = "",
+    title = NULL,
     tag_levels = "A"
   ) &
   theme(
