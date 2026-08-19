@@ -606,23 +606,20 @@ ggsave("Regional_GC_closeness_vs_betweenness.tiff", p_gc_cb,
 
 cat("Plot: Combined Indegree/Outdegree + Closeness/Betweenness panel (US Gulf Coast, aggregated model only)...\n")
 
-p_gc_io_combo <- p_gc_io + labs(title = NULL, subtitle = NULL, tag = "A")
-p_gc_cb_combo <- p_gc_cb + labs(title = NULL, tag = "B")
+p_gc_io_combo <- p_gc_io + labs(title = NULL, subtitle = NULL)
+p_gc_cb_combo <- p_gc_cb + labs(title = NULL) +
+  guides(colour = "none")   # <-- panel B contributes no legend of its own
 
-shared_legend_gc <- cowplot::get_legend(
-  p_gc_io_combo + theme(legend.position = "bottom", legend.justification = "center")
-)
-
-p_gc_combo <- (
-  (p_gc_io_combo + theme(legend.position = "bottom",legend.justification = "center")) |
-    (p_gc_cb_combo + theme(legend.position = "none"))
-) /
-  shared_legend_gc +
-  patchwork::plot_layout(heights = c(20, 1)) +
+p_gc_combo <- (p_gc_io_combo | p_gc_cb_combo) +
+  patchwork::plot_layout(guides = "collect") +
   patchwork::plot_annotation(
-    title = NULL
+    title = NULL,
+    tag_levels = "A"
   ) &
-  theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.5))
+  theme(
+    legend.position = "bottom",
+    plot.title      = element_text(size = 20, face = "bold", hjust = 0.5)
+  )
 
 ggsave("Regional_GC_indegree_closeness_combined.png", p_gc_combo,
        width = 16, height = 8, units = "in", dpi = 1200)
