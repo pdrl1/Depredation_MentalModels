@@ -648,7 +648,7 @@ fig1 <- (p_au_io | p_gc_io | p_gv_io) / (p_au_cb | p_gc_cb | p_gv_cb) +
     legend.position    = "bottom",
     legend.justification = "center",
     legend.box.just    = "center",
-    plot.tag           = element_text(size = 14, face = "bold")
+    plot.tag           = element_text(size = 18, face = "bold")
   )
 
 ggsave(file.path(OUT_DIR, "Figure1_Indegree_Closeness_AU_GC_GV.png"), fig1,
@@ -744,8 +744,8 @@ plot_prominence_rank <- function(metrics_list, label, groups_df = NULL,
     theme_fcm() +
     theme(
       plot.title    = element_text(size = 15, face = "bold", hjust = 0.5),
-      axis.text     = element_text(size = 11),
-      axis.text.y   = element_text(size = 11, face = "bold", colour = label_colours,
+      axis.text     = element_text(size = 14),
+      axis.text.y   = element_text(size = 14, face = "bold", colour = label_colours,
                                    hjust = 1, margin = margin(r = 6)),
       axis.text.x   = element_text(size = 11, face = "bold",
                                    angle = 0, hjust = 0.5, vjust = 1,
@@ -771,18 +771,18 @@ prom_GV <- plot_prominence_rank(
   gv_metrics, "Galveston", groups_df = gv_groups, col_order = GV_UNITS,
   show_rank_legend = FALSE, show_group_legend = FALSE)
 
-fig2 <- (prom_AU | prom_GC | prom_GV) +
+fig2 <- (prom_AU / prom_GC / prom_GV) +
   plot_layout(guides = "collect") +
   plot_annotation(tag_levels = "A") &
   theme(
     legend.position     = "bottom",
     legend.justification = "center",
     legend.box.just     = "center",
-    plot.tag            = element_text(size = 14, face = "bold")
+    plot.tag            = element_text(size = 18, face = "bold")
   )
 
 ggsave(file.path(OUT_DIR, "Figure2_Prominence_AU_GC_GV.png"), fig2,
-       width = 26, height = 17, units = "in", dpi = 1200)
+       width = 14, height = 25, units = "in", dpi = 1200)
 ggsave(file.path(OUT_DIR, "Figure2_Prominence_AU_GC_GV.pdf"), fig2,
        width = 28, height = 18, units = "in", device = cairo_pdf)
 
