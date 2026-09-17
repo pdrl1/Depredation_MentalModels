@@ -918,8 +918,8 @@ ggsave(file.path(OUT_DIR, "Figure1_Indegree_Closeness_AU_GC_GV_rows.png"), fig1_
 
 plot_prominence_bars <- function(metrics_list, label, groups_df = NULL,
                                  top_n = 10, col_order = names(metrics_list),
-                                 show_legend = TRUE, label_map = NULL,
-                                 wrap_width = 22, bar_size = 2.5, point_size = 3.5) {
+                                 show_legend = TRUE, show_x_label = TRUE, label_map = NULL,
+                                 wrap_width = 22, bar_size = 2, point_size = 2.5) {
   
   group_var <- if (!is.null(groups_df)) "Group" else "concept_type"
   
@@ -971,7 +971,7 @@ plot_prominence_bars <- function(metrics_list, label, groups_df = NULL,
     facet_wrap(~ subregion, scales = "free_y", nrow = 1,
                labeller = as_labeller(facet_labels)) +
     scale_x_continuous(limits = c(0.5, 1), breaks = c(0.5, 0.75, 1)) +
-    labs(title = label, x = "Prominence", y = NULL) +
+    labs(title = label, x = if (show_x_label) "Prominence" else NULL, y = NULL) +
     theme_fcm() +
     theme(
       plot.title         = element_text(size = 15, face = "bold", hjust = 0.5),
@@ -988,13 +988,13 @@ plot_prominence_bars <- function(metrics_list, label, groups_df = NULL,
 
 prom_AU <- plot_prominence_bars(
   au_metrics, "National", groups_df = au_groups, col_order = AU_UNITS,
-  show_legend = TRUE,
+  show_legend = TRUE, show_x_label = FALSE,
   label_map = c("Western Australia" = "Western Aus.",
                 "North Australia"   = "North Aus."))
 
 prom_GC <- plot_prominence_bars(
   gc_metrics, "Regional", groups_df = gc_groups, col_order = GC_UNITS,
-  show_legend = FALSE)
+  show_legend = FALSE, show_x_label = FALSE)
 
 prom_GV <- plot_prominence_bars(
   gv_metrics, "Local", groups_df = gv_groups, col_order = GV_UNITS,
@@ -1011,5 +1011,5 @@ fig2 <- (prom_AU / prom_GC / prom_GV) +
   )
 
 ggsave(file.path(OUT_DIR, "Figure2_Prominence_AU_GC_GV_lollipop.png"), fig2,
-       width = 20, height = 16, units = "in", dpi = 1200)
+       width = 25, height = 16, units = "in", dpi = 1200)
 
