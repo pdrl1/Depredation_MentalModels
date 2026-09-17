@@ -916,6 +916,9 @@ ggsave(file.path(OUT_DIR, "Figure1_Indegree_Closeness_AU_GC_GV_rows.png"), fig1_
 #   bar lengths stay comparable across facets within a row.
 # ============================================================
 
+GC_UNITS_ORDERED <- c("US Gulf Coast", "Texas", "Louisiana",
+                      "Mississippi", "Alabama", "Florida")
+
 plot_prominence_bars <- function(metrics_list, label, groups_df = NULL,
                                  top_n = 10, col_order = names(metrics_list),
                                  show_legend = TRUE, show_x_label = TRUE, label_map = NULL,
@@ -990,11 +993,12 @@ prom_AU <- plot_prominence_bars(
   au_metrics, "National", groups_df = au_groups, col_order = AU_UNITS,
   show_legend = TRUE, show_x_label = FALSE,
   label_map = c("Western Australia" = "Western Aus.",
-                "North Australia"   = "North Aus."))
+                "North Australia"   = "Northern Territory"))
 
 prom_GC <- plot_prominence_bars(
-  gc_metrics, "Regional", groups_df = gc_groups, col_order = GC_UNITS,
-  show_legend = FALSE, show_x_label = FALSE)
+  gc_metrics, "Regional", groups_df = gc_groups, col_order = GC_UNITS_ORDERED,
+  show_legend = FALSE, show_x_label = FALSE,
+  label_map = c("US Gulf Coast" = "U.S. Gulf Coast"))
 
 prom_GV <- plot_prominence_bars(
   gv_metrics, "Local", groups_df = gv_groups, col_order = GV_UNITS,
