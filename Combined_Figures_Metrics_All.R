@@ -1015,5 +1015,5 @@ fig2 <- (prom_AU / prom_GC / prom_GV) +
   )
 
 ggsave(file.path(OUT_DIR, "Figure2_Prominence_AU_GC_GV_lollipop.png"), fig2,
-       width = 25, height = 16, units = "in", dpi = 1200)
+       width = 25, height = 16, units = "in", dpi = 1000)
 
