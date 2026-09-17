@@ -449,7 +449,7 @@ gv_agg_df <- build_agg_df(gv_metrics, GV_AGGREGATE)
 #     top of a neighbour -- the leader line still points back to the real
 #     data point, only the box's resting position is nudged.
 build_io_plot <- function(df, xlim, ylim, label_frac, label_angle,
-                          title, show_legend, show_y_label = TRUE, p_keep = 0.80,
+                          title, show_legend, show_y_label = TRUE, show_x_label = TRUE, p_keep = 0.80,
                           label_size = 4, wrap_width = 20,
                           box_padding = 0.4, repel_force = 1,
                           repel_max_iter = 10000, label_nudges = NULL) {
@@ -513,10 +513,13 @@ build_io_plot <- function(df, xlim, ylim, label_frac, label_angle,
          colour = "Concept type") +
     theme_fcm() +
     theme(
-      plot.title   = element_text(size = 16, face = "bold", hjust = 0.5),
-      axis.title   = element_text(size = 13),
-      legend.title = element_text(size = 12),
-      legend.text  = element_text(size = 12)
+      plot.title    = element_text(size = 16, face = "bold", hjust = 0.5),
+      axis.title    = element_text(size = 13),
+      axis.title.x  = element_text(margin = margin(t = 2)),
+      axis.title.y  = element_text(margin = margin(r = 2)),
+      legend.title  = element_text(size = 12),
+      legend.text   = element_text(size = 12),
+      plot.margin   = margin(2, 3, 2, 3)   # top, right, bottom, left (pt)
     )
   p
 }
@@ -527,7 +530,7 @@ build_io_plot <- function(df, xlim, ylim, label_frac, label_angle,
 #     of-Degree logic build_io_plot uses -- so a panel can be tuned with
 #     the identical "top 15%" language as the indegree/outdegree panels.
 build_cb_plot <- function(df, xlim = NULL, ylim = NULL, title = NULL,
-                          show_legend, show_y_label = TRUE, p_keep_n = 10,
+                          show_legend, show_y_label = TRUE, show_x_label = TRUE, p_keep_n = 10,
                           p_keep = NULL,
                           label_size = 4, wrap_width = 16,
                           box_padding = 0.5, repel_force = 1,
@@ -578,10 +581,13 @@ build_cb_plot <- function(df, xlim = NULL, ylim = NULL, title = NULL,
          colour = "Concept type") +
     theme_fcm() +
     theme(
-      plot.title   = element_text(size = 16, face = "bold", hjust = 0.5),
-      axis.title   = element_text(size = 13),
-      legend.title = element_text(size = 12),
-      legend.text  = element_text(size = 12)
+      plot.title    = element_text(size = 16, face = "bold", hjust = 0.5),
+      axis.title    = element_text(size = 13),
+      axis.title.x  = element_text(margin = margin(t = 2)),
+      axis.title.y  = element_text(margin = margin(r = 2)),
+      legend.title  = element_text(size = 12),
+      legend.text   = element_text(size = 12),
+      plot.margin   = margin(2, 3, 2, 3)   # top, right, bottom, left (pt)
     )
   
   if (!is.null(xlim) || !is.null(ylim))
@@ -602,13 +608,13 @@ build_cb_plot <- function(df, xlim = NULL, ylim = NULL, title = NULL,
 # keeping the stronger repel push to help the higher label count stay legible.
 p_au_io <- build_io_plot(au_agg_df, xlim = c(0, 20),  ylim = c(0, 15),
                          label_frac = 0.65, label_angle = 45,
-                         title = "Australia", show_legend = TRUE,
+                         title = "National", show_legend = TRUE,
                          p_keep = 0.85, box_padding = 0.9, repel_force = 5,
                          repel_max_iter = 50000,
                          label_nudges = list("Shark Habituation" = c(8, 4)))
 p_gc_io <- build_io_plot(gc_agg_df, xlim = c(0, 22),  ylim = c(0, 20),
                          label_frac = 0.90, label_angle = 35,
-                         title = "US Gulf Coast", show_legend = FALSE,
+                         title = "Regional", show_legend = FALSE,
                          show_y_label = FALSE,
                          p_keep = 0.85, box_padding = 0.6, repel_force = 2,
                          repel_max_iter = 30000)
@@ -618,7 +624,7 @@ p_gc_io <- build_io_plot(gc_agg_df, xlim = c(0, 22),  ylim = c(0, 20),
 # stronger repel push.
 p_gv_io <- build_io_plot(gv_agg_df, xlim = c(0, 7),   ylim = c(0, 7),
                          label_frac = 0.25, label_angle = 35,
-                         title = "Galveston", show_legend = FALSE,
+                         title = "Local", show_legend = FALSE,
                          show_y_label = FALSE,
                          p_keep = 0.85, label_size = 4, wrap_width = 13,
                          box_padding = 0.7, repel_force = 3,
@@ -758,17 +764,17 @@ plot_prominence_rank <- function(metrics_list, label, groups_df = NULL,
 }
 
 prom_AU <- plot_prominence_rank(
-  au_metrics, "Australia", groups_df = au_groups, col_order = AU_UNITS,
+  au_metrics, "National", groups_df = au_groups, col_order = AU_UNITS,
   show_rank_legend = FALSE, show_group_legend = TRUE,
   label_map = c("Western Australia" = "Western Aus.",
                 "North Australia"   = "North Aus."))
 
 prom_GC <- plot_prominence_rank(
-  gc_metrics, "US Gulf Coast", groups_df = gc_groups, col_order = GC_UNITS,
+  gc_metrics, "Regional", groups_df = gc_groups, col_order = GC_UNITS,
   show_rank_legend = FALSE, show_group_legend = FALSE)
 
 prom_GV <- plot_prominence_rank(
-  gv_metrics, "Galveston", groups_df = gv_groups, col_order = GV_UNITS,
+  gv_metrics, "Local", groups_df = gv_groups, col_order = GV_UNITS,
   show_rank_legend = FALSE, show_group_legend = FALSE)
 
 fig2 <- (prom_AU / prom_GC / prom_GV) +
@@ -787,3 +793,223 @@ ggsave(file.path(OUT_DIR, "Figure2_Prominence_AU_GC_GV.pdf"), fig2,
        width = 28, height = 18, units = "in", device = cairo_pdf)
 
 cat("\n\nCombined figures complete. Saved to:", OUT_DIR, "\n")
+
+# ============================================================
+# SECTION 5b — FIGURE 1 (ROW LAYOUT): 3 ROWS x 2 COLUMNS
+#   (same as before -- only 3 things changed, marked CHANGED below:
+#    1. make_row_label() now has zero plot margin and the text sits
+#       closer to the right edge of its column, next to the plot.
+#    2. The label column's width fraction is smaller (0.03 vs 0.06),
+#       so less of the total figure width is spent on it.
+#    3. ggsave() widths are larger, so the two real plot columns are
+#       wider in absolute terms.
+#   Everything else (the 6 p_*_r objects, tags, x-label logic) is
+#   unchanged from before -- only paste the parts below that differ,
+#   or the whole block, either is fine.
+# ============================================================
+
+# CHANGED: zero plot margin, text nudged toward the right edge (x = 0.6
+# instead of 0) so it sits closer to the plot beside it.
+make_row_label <- function(text, size = 6, angle = 90) {
+  ggplot() +
+    theme_void() +
+    annotate("text", x = 0.6, y = 0, label = text, angle = angle,
+             size = size, fontface = "bold", colour = "grey15") +
+    coord_cartesian(xlim = c(-0.5, 1), ylim = c(-1, 1), clip = "off") +
+    theme(plot.margin = margin(0, 0, 0, 0))
+}
+
+p_nat_io_r <- build_io_plot(au_agg_df, xlim = c(0, 20),  ylim = c(0, 15),
+                            label_frac = 0.65, label_angle = 45,
+                            title = NULL, show_legend = TRUE,
+                            show_x_label = FALSE,
+                            p_keep = 0.85, box_padding = 0.9, repel_force = 5,
+                            repel_max_iter = 50000,
+                            label_nudges = list("Shark Habituation" = c(8, 4))) +
+  labs(tag = "A")
+
+p_nat_cb_r <- build_cb_plot(au_agg_df, xlim = c(0.40, 0.75), ylim = c(0, 0.12),
+                            show_legend = FALSE, show_x_label = FALSE,
+                            p_keep_n = 6, box_padding = 0.9, repel_force = 5,
+                            repel_max_iter = 50000) +
+  labs(tag = "B")
+
+p_reg_io_r <- build_io_plot(gc_agg_df, xlim = c(0, 22),  ylim = c(0, 20),
+                            label_frac = 0.90, label_angle = 35,
+                            title = NULL, show_legend = FALSE,
+                            show_x_label = FALSE,
+                            p_keep = 0.85, box_padding = 0.6, repel_force = 2,
+                            repel_max_iter = 30000) +
+  labs(tag = "C")
+
+p_reg_cb_r <- build_cb_plot(gc_agg_df, xlim = NULL, ylim = NULL,
+                            show_legend = FALSE, show_x_label = FALSE,
+                            p_keep_n = 8, box_padding = 0.6, repel_force = 2,
+                            repel_max_iter = 30000) +
+  labs(tag = "D")
+
+p_loc_io_r <- build_io_plot(gv_agg_df, xlim = c(0, 7),   ylim = c(0, 7),
+                            label_frac = 0.25, label_angle = 35,
+                            title = NULL, show_legend = FALSE,
+                            show_x_label = TRUE,
+                            p_keep = 0.85, label_size = 4, wrap_width = 13,
+                            box_padding = 0.7, repel_force = 3,
+                            repel_max_iter = 30000) +
+  labs(tag = "E")
+
+p_loc_cb_r <- build_cb_plot(gv_agg_df, xlim = c(0.25, 1.25), ylim = c(0, 0.05),
+                            show_legend = FALSE, show_x_label = TRUE,
+                            p_keep_n = 7, label_size = 4, wrap_width = 13,
+                            box_padding = 0.7, repel_force = 3,
+                            repel_max_iter = 30000) +
+  labs(tag = "F")
+
+p_nat_io_r <- p_nat_io_r +
+  annotate("text", x = -5, y = 7.5, label = "National", angle = 90,
+           size = 6, fontface = "bold", colour = "grey15") +
+  coord_cartesian(xlim = c(0, 20), ylim = c(0, 15), clip = "off") +
+  theme(plot.margin = margin(2, 3, 2, 30))
+
+p_reg_io_r <- p_reg_io_r +
+  annotate("text", x = -5.5, y = 10, label = "Regional", angle = 90,
+           size = 6, fontface = "bold", colour = "grey15") +
+  coord_cartesian(xlim = c(0, 22), ylim = c(0, 20), clip = "off") +
+  theme(plot.margin = margin(2, 3, 2, 30))
+
+p_loc_io_r <- p_loc_io_r +
+  annotate("text", x = -1.75, y = 3.5, label = "Local", angle = 90,
+           size = 6, fontface = "bold", colour = "grey15") +
+  coord_cartesian(xlim = c(0, 7), ylim = c(0, 7), clip = "off") +
+  theme(plot.margin = margin(2, 3, 2, 30))
+
+# CHANGED: label column shrunk from 0.06 to 0.03 -- less width "wasted"
+# on it, so more of the figure goes to the two real plot columns.
+fig1_rows <- (p_nat_io_r | p_nat_cb_r) /
+  (p_reg_io_r | p_reg_cb_r) /
+  (p_loc_io_r | p_loc_cb_r) +
+  plot_layout(guides = "collect") &
+  theme(
+    legend.position      = "bottom",
+    legend.justification = "center",
+    legend.box.just      = "center",
+    legend.margin        = margin(0, 0, 0, 0),
+    legend.box.spacing   = unit(1, "pt"),
+    plot.tag             = element_text(size = 18, face = "bold")
+  )
+
+# CHANGED: bumped width up (15->19 / 21->26) so each plot column is wider
+# in absolute terms; height left as-is.
+ggsave(file.path(OUT_DIR, "Figure1_Indegree_Closeness_AU_GC_GV_rows.png"), fig1_rows,
+       width = 19, height = 19, units = "in", dpi = 1200)
+
+
+
+
+# ============================================================
+# SECTION 6 — FIGURE 2: PROMINENCE PANEL (faceted lollipop charts)
+#   Replaces the tile-heatmap version. Each row (National/Regional/
+#   Local) is one ggplot object with one facet per subunit
+#   (aggregate + its subregions), each facet a horizontal lollipop
+#   chart of that subunit's top-N concepts by actual prominence
+#   VALUE (not just rank), coloured by category. Facets share a
+#   fixed x-axis (0.5-1, the theoretical range of `prominence`) so
+#   bar lengths stay comparable across facets within a row.
+# ============================================================
+
+plot_prominence_bars <- function(metrics_list, label, groups_df = NULL,
+                                 top_n = 10, col_order = names(metrics_list),
+                                 show_legend = TRUE, label_map = NULL,
+                                 wrap_width = 22, bar_size = 2.5, point_size = 3.5) {
+  
+  group_var <- if (!is.null(groups_df)) "Group" else "concept_type"
+  
+  plot_data <- bind_rows(lapply(names(metrics_list), function(r) {
+    m <- metrics_list[[r]]; if (is.null(m)) return(NULL)
+    df <- m$node_df %>% arrange(desc(prominence)) %>% head(top_n) %>%
+      mutate(subregion = r)
+    if (!is.null(groups_df))
+      df <- df %>% left_join(groups_df, by = "name") %>%
+      mutate(Group = replace_na(Group, "Other"))
+    else
+      df <- df %>% mutate(Group = concept_type)
+    df
+  }))
+  
+  plot_data <- plot_data %>%
+    mutate(subregion = factor(subregion, levels = col_order),
+           name_wrapped = str_wrap(name, wrap_width))
+  
+  group_colours_used <- if (!is.null(groups_df)) GROUP_COLOURS else TYPE_COLOURS
+  group_levels_present <- if (!is.null(groups_df))
+    GROUP_ORDER[GROUP_ORDER %in% unique(plot_data$Group)]
+  else
+    names(TYPE_COLOURS)
+  
+  plot_data <- plot_data %>%
+    mutate(Group = factor(Group, levels = group_levels_present),
+           # reorder_within lets the same concept sit at a different rank
+           # (y-position) in each facet, without factor-level collisions
+           name_ordered = tidytext::reorder_within(name_wrapped, prominence, subregion))
+  
+  facet_labels <- setNames(as.character(col_order), col_order)
+  if (!is.null(label_map)) {
+    matched <- as.character(col_order) %in% names(label_map)
+    facet_labels[matched] <- label_map[as.character(col_order)[matched]]
+  }
+  
+  ggplot(plot_data, aes(x = prominence, y = name_ordered, colour = Group)) +
+    geom_segment(aes(x = 0.5, xend = prominence,
+                     y = name_ordered, yend = name_ordered),
+                 linewidth = bar_size, lineend = "round") +
+    geom_point(size = point_size) +
+    tidytext::scale_y_reordered() +
+    scale_colour_manual(values = group_colours_used, name = NULL, drop = FALSE,
+                        guide = if (show_legend)
+                          guide_legend(position = "bottom",
+                                       override.aes = list(size = 5))
+                        else "none") +
+    facet_wrap(~ subregion, scales = "free_y", nrow = 1,
+               labeller = as_labeller(facet_labels)) +
+    scale_x_continuous(limits = c(0.5, 1), breaks = c(0.5, 0.75, 1)) +
+    labs(title = label, x = "Prominence", y = NULL) +
+    theme_fcm() +
+    theme(
+      plot.title         = element_text(size = 15, face = "bold", hjust = 0.5),
+      axis.text.y        = element_text(size = 10, face = "bold"),
+      axis.text.x        = element_text(size = 10),
+      strip.text         = element_text(size = 12, face = "bold"),
+      legend.title        = element_text(size = 12),
+      legend.text         = element_text(size = 11),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor    = element_blank(),
+      panel.spacing       = unit(1, "lines")
+    )
+}
+
+prom_AU <- plot_prominence_bars(
+  au_metrics, "National", groups_df = au_groups, col_order = AU_UNITS,
+  show_legend = TRUE,
+  label_map = c("Western Australia" = "Western Aus.",
+                "North Australia"   = "North Aus."))
+
+prom_GC <- plot_prominence_bars(
+  gc_metrics, "Regional", groups_df = gc_groups, col_order = GC_UNITS,
+  show_legend = FALSE)
+
+prom_GV <- plot_prominence_bars(
+  gv_metrics, "Local", groups_df = gv_groups, col_order = GV_UNITS,
+  show_legend = FALSE)
+
+fig2 <- (prom_AU / prom_GC / prom_GV) +
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    legend.position       = "bottom",
+    legend.justification  = "center",
+    legend.box.just       = "center",
+    plot.tag              = element_text(size = 18, face = "bold")
+  )
+
+ggsave(file.path(OUT_DIR, "Figure2_Prominence_AU_GC_GV_lollipop.png"), fig2,
+       width = 20, height = 16, units = "in", dpi = 1200)
+
